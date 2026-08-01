@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { cancelMeetingAction } from '@/app/(app)/calendar/actions'
 import { providerCode, providerLabel } from '@/lib/meetings/schema'
 import { formatRange } from '@/lib/time'
 import { NewMeetingModal } from './new-meeting-modal'
@@ -45,6 +46,7 @@ export function CalendarView({
 }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  const [editing, setEditing] = useState<MeetingDto | null>(null)
   const [shortcuts, setShortcuts] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -83,15 +85,21 @@ export function CalendarView({
     return () => clearTimeout(timer)
   }, [toast])
 
-  const onCreated = useCallback((title: string, conflicts: { fullName: string }[]) => {
-    // §8: the toast uses the button's verb. Conflicts are reported, not
-    // apologised for — the meeting saved either way.
-    setToast(
-      conflicts.length > 0
-        ? `Meeting created. ${conflicts.length === 1 ? `${conflicts[0]!.fullName} was` : `${conflicts.length} people were`} already busy.`
-        : 'Meeting created',
-    )
-  }, [])
+  const onSaved = useCallback(
+    (verb: 'created' | 'updated', _title: string, conflicts: { fullName: string }[]) => {
+      // §8: the toast uses the button's verb. Conflicts are reported, not
+      // apologised for — the meeting saved either way.
+      const head = verb === 'created' ? 'Meeting created' : 'Changes saved'
+      setToast(
+        conflicts.length > 0
+          ? `${head}. ${conflicts.length === 1 ? `${conflicts[0]!.fullName} was` : `${conflicts.length} people were`} already busy.`
+          : head,
+      )
+      setEditing(null)
+      setSelected(null)
+    },
+    [],
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -240,19 +248,39 @@ export function CalendarView({
       </div>
 
       {chosen && (
-        <DetailPanel meeting={chosen} zone={zone} onClose={() => setSelected(null)} />
+        <DetailPanel
+          meeting={chosen}
+          zone={zone}
+          onClose={() => setSelected(null)}
+          onEdit={() => {
+            setEditing(chosen)
+            setModalOpen(true)
+          }}
+          onCancelled={(title) => {
+            setToast(`${title} cancelled`)
+            setSelected(null)
+          }}
+        />
       )}
 
       <NewMeetingModal
+        // Remounts between create and edit so the prefilled defaults are
+        // rebuilt rather than kept from the previous open.
+        key={editing?.id ?? 'new'}
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false)
+          setEditing(null)
+        }}
         people={people}
         clients={clients}
         meetings={meetings}
         meId={meId}
         defaultDate={defaultDate}
         canInviteOthers={canInviteOthers}
-        onCreated={onCreated}
+        zone={zone}
+        editing={editing}
+        onSaved={onSaved}
       />
 
       {shortcuts && <ShortcutSheet onClose={() => setShortcuts(false)} />}
@@ -320,12 +348,29 @@ function DetailPanel({
   meeting,
   zone,
   onClose,
+  onEdit,
+  onCancelled,
 }: {
   meeting: MeetingDto
   zone: string
   onClose: () => void
+  onEdit: () => void
+  onCancelled: (title: string) => void
 }) {
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
   const hasLink = Boolean(meeting.conferenceUrl)
+  const cancelled = meeting.status === 'cancelled'
+
+  function cancel() {
+    setError(null)
+    startTransition(async () => {
+      const result = await cancelMeetingAction(meeting.id)
+      if (result.error) setError(result.error)
+      else onCancelled(meeting.title)
+    })
+  }
 
   return (
     <aside className="animate-panel-in fixed inset-y-0 right-0 z-40 w-[480px] max-w-full overflow-auto border-l border-rule bg-surface shadow-float">
@@ -398,6 +443,71 @@ function DetailPanel({
             ))}
           </ul>
         </div>
+
+        {/* Buttons appear only where can() allowed it server-side. This hides;
+            requirePermission enforces (§3). */}
+        {!cancelled && (meeting.canEdit || meeting.canCancel) && (
+          <div className="mt-6 flex items-center gap-2 border-t border-rule pt-4">
+            {meeting.canEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="h-9 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal"
+              >
+                Edit
+              </button>
+            )}
+
+            {meeting.canCancel &&
+              (confirming ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cancel}
+                    disabled={pending}
+                    className="h-9 cursor-pointer rounded-sm px-3 text-label font-semibold text-white transition-colors duration-[80ms] disabled:opacity-60"
+                    style={{ background: 'var(--live)' }}
+                  >
+                    {pending ? 'Cancelling' : 'Yes, cancel it'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(false)}
+                    className="h-9 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal"
+                  >
+                    Keep it
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  className="h-9 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium text-slate transition-colors duration-[80ms] hover:border-signal"
+                >
+                  Cancel meeting
+                </button>
+              ))}
+          </div>
+        )}
+
+        {confirming && !pending && (
+          <p className="mt-2 text-label text-slate">
+            Everyone on the meeting will be told. The record is kept, not deleted.
+          </p>
+        )}
+
+        {cancelled && (
+          <p className="mt-6 border-t border-rule pt-4 text-label text-slate">
+            This meeting was cancelled. The record is kept so attendance and history stay
+            accurate.
+          </p>
+        )}
+
+        {error && (
+          <p role="alert" className="mt-3 text-label text-slate">
+            {error}
+          </p>
+        )}
       </div>
     </aside>
   )

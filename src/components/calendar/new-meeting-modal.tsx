@@ -2,12 +2,17 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
-import { createMeetingAction, type MeetingFormState } from '@/app/(app)/calendar/actions'
+import {
+  createMeetingAction,
+  updateMeetingAction,
+  type MeetingFormState,
+} from '@/app/(app)/calendar/actions'
 import { outcomeSummary, providerLabel } from '@/lib/meetings/schema'
-import { overlaps } from '@/lib/time'
+import { overlaps, toWallClock } from '@/lib/time'
 import type { ClientDto, MeetingDto, PersonDto } from './types'
 
 type MeetingType = '' | 'internal' | 'client'
+type Provider = 'google_meet' | 'zoom' | 'whatsapp' | 'none'
 
 /** 44px controls, 2px radius, hairline border — the design's form geometry. */
 const CONTROL =
@@ -40,7 +45,7 @@ function Field({
   )
 }
 
-function Submit() {
+function Submit({ editing }: { editing: boolean }) {
   const { pending } = useFormStatus()
   return (
     <button
@@ -48,10 +53,19 @@ function Submit() {
       disabled={pending}
       className="h-11 cursor-pointer rounded-sm bg-signal px-4 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-60"
     >
-      {pending ? 'Creating meeting' : 'Create meeting'}
+      {/* §8: the toast reuses the button's verb, so they always agree. */}
+      {pending
+        ? editing
+          ? 'Saving changes'
+          : 'Creating meeting'
+        : editing
+          ? 'Save changes'
+          : 'Create meeting'}
     </button>
   )
 }
+
+const pad = (n: number) => String(n).padStart(2, '0')
 
 const TYPES = [
   { value: 'internal' as const, label: 'Team meeting', hint: 'Internal only' },
@@ -67,7 +81,9 @@ export function NewMeetingModal({
   meId,
   defaultDate,
   canInviteOthers,
-  onCreated,
+  zone,
+  editing,
+  onSaved,
 }: {
   open: boolean
   onClose: () => void
@@ -77,20 +93,40 @@ export function NewMeetingModal({
   meId: string
   defaultDate: string
   canInviteOthers: boolean
-  onCreated: (title: string, conflicts: { fullName: string }[]) => void
+  zone: string
+  /** §4.1.1: the same modal handles editing, prefilled. */
+  editing?: MeetingDto | null
+  onSaved: (verb: 'created' | 'updated', title: string, conflicts: { fullName: string }[]) => void
 }) {
+  const isEditing = Boolean(editing)
+
   const [state, formAction] = useActionState<MeetingFormState, FormData>(
-    createMeetingAction,
+    isEditing ? updateMeetingAction : createMeetingAction,
     {},
   )
 
-  const [type, setType] = useState<MeetingType>('')
-  const [clientId, setClientId] = useState('')
-  const [provider, setProvider] = useState('none')
-  const [date, setDate] = useState(defaultDate)
-  const [start, setStart] = useState('09:30')
-  const [end, setEnd] = useState('10:00')
-  const [attendees, setAttendees] = useState<string[]>([meId])
+  const startWall = editing ? toWallClock(new Date(editing.startsAt), zone) : null
+  const endWall = editing ? toWallClock(new Date(editing.endsAt), zone) : null
+
+  const [type, setType] = useState<MeetingType>(editing?.type ?? '')
+  const [clientId, setClientId] = useState(editing?.clientId ?? '')
+  const [provider, setProvider] = useState<Provider>(
+    editing?.conferencingProvider ?? 'none',
+  )
+  const [date, setDate] = useState(
+    startWall
+      ? `${startWall.year}-${pad(startWall.month)}-${pad(startWall.day)}`
+      : defaultDate,
+  )
+  const [start, setStart] = useState(
+    startWall ? `${pad(startWall.hour)}:${pad(startWall.minute)}` : '09:30',
+  )
+  const [end, setEnd] = useState(
+    endWall ? `${pad(endWall.hour)}:${pad(endWall.minute)}` : '10:00',
+  )
+  const [attendees, setAttendees] = useState<string[]>(
+    editing ? editing.attendees.map((a) => a.id) : [meId],
+  )
   const dialog = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -103,10 +139,11 @@ export function NewMeetingModal({
   }, [open, onClose])
 
   useEffect(() => {
-    if (!state.created) return
-    onCreated(state.created, state.conflicts ?? [])
+    const title = state.created ?? state.updated
+    if (!title) return
+    onSaved(state.created ? 'created' : 'updated', title, state.conflicts ?? [])
     onClose()
-  }, [state.created, state.conflicts, onCreated, onClose])
+  }, [state.created, state.updated, state.conflicts, onSaved, onClose])
 
   /** §4.2: domestic → Meet, international → Zoom. Preselect, always overridable. */
   useEffect(() => {
@@ -165,7 +202,9 @@ export function NewMeetingModal({
         className="animate-modal-in max-h-[88vh] w-[560px] max-w-full overflow-auto rounded-sm border border-rule bg-surface shadow-float"
       >
         <div className="flex h-12 items-center justify-between border-b border-rule pl-6 pr-4">
-          <h2 className="font-display text-title">New meeting</h2>
+          <h2 className="font-display text-title">
+            {isEditing ? 'Edit meeting' : 'New meeting'}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -177,6 +216,8 @@ export function NewMeetingModal({
         </div>
 
         <form action={formAction} className="p-6">
+          {editing && <input type="hidden" name="id" value={editing.id} />}
+
           {/* Step 1 — nothing else renders until a type is chosen (§4.1.1). */}
           <div className="text-micro uppercase text-slate">Meeting type</div>
           <input type="hidden" name="type" value={type} />
@@ -237,7 +278,7 @@ export function NewMeetingModal({
                   <select
                     name="conferencingProvider"
                     value={provider}
-                    onChange={(e) => setProvider(e.target.value)}
+                    onChange={(e) => setProvider(e.target.value as Provider)}
                     className={CONTROL}
                   >
                     {providerOptions.map((p) => (
@@ -249,7 +290,13 @@ export function NewMeetingModal({
                 </Field>
 
                 <Field index={2} label="Title">
-                  <input name="title" required maxLength={200} className={CONTROL} />
+                  <input
+                    name="title"
+                    required
+                    maxLength={200}
+                    defaultValue={editing?.title ?? ''}
+                    className={CONTROL}
+                  />
                 </Field>
 
                 <div
@@ -362,6 +409,7 @@ export function NewMeetingModal({
                   <textarea
                     name="description"
                     rows={2}
+                    defaultValue={editing?.description ?? ''}
                     className="w-full rounded-sm border border-rule bg-surface px-3 py-2 text-body focus-visible:outline-2 focus-visible:outline-signal focus-visible:outline-offset-2"
                   />
                 </Field>
@@ -370,10 +418,14 @@ export function NewMeetingModal({
               {/* Step 4 — say exactly what will happen, then the actions. */}
               <div className="mt-6 flex items-center justify-between gap-4 border-t border-rule pt-4">
                 <p className="text-label font-medium">
-                  {outcomeSummary(
-                    provider as 'google_meet' | 'zoom' | 'whatsapp' | 'none',
-                    attendees.length,
-                  )}
+                  {/* §4.1.1: changing the platform on an existing meeting
+                      revokes the old link and issues a new one, so say so. */}
+                  {isEditing && editing && provider !== editing.conferencingProvider
+                    ? `Platform changed. ${outcomeSummary(provider as 'google_meet' | 'zoom' | 'whatsapp' | 'none', attendees.length)}`
+                    : outcomeSummary(
+                        provider as 'google_meet' | 'zoom' | 'whatsapp' | 'none',
+                        attendees.length,
+                      )}
                 </p>
                 <div className="flex shrink-0 gap-2">
                   <button
@@ -383,7 +435,7 @@ export function NewMeetingModal({
                   >
                     Cancel
                   </button>
-                  <Submit />
+                  <Submit editing={isEditing} />
                 </div>
               </div>
             </>

@@ -1,33 +1,15 @@
 import { redirect } from 'next/navigation'
 import { CalendarView } from '@/components/calendar/calendar-view'
-import type { MeetingDto } from '@/components/calendar/types'
 import { PageHeader } from '@/components/shell/page-header'
 import { can } from '@/lib/permissions'
 import { addDays, startOfWeek, toWallClock } from '@/lib/time'
 import { getActor } from '@/server/auth/session'
+import { toMeetingDto, visibleTo } from '@/server/meetings/dto'
 import {
   listClients,
   listMeetingsInRange,
   listTeam,
-  type MeetingRow,
 } from '@/server/meetings/queries'
-
-function toDto(m: MeetingRow): MeetingDto {
-  return {
-    id: m.id,
-    title: m.title,
-    description: m.description,
-    startsAt: m.startsAt.toISOString(),
-    endsAt: m.endsAt.toISOString(),
-    type: m.type,
-    status: m.status,
-    conferencingProvider: m.conferencingProvider,
-    conferenceUrl: m.conferenceUrl,
-    clientName: m.clientName,
-    clientPhone: m.clientPhone,
-    attendees: m.attendees,
-  }
-}
 
 const isoDate = (d: Date, zone: string) => {
   const w = toWallClock(d, zone)
@@ -61,13 +43,7 @@ export default async function CalendarPage({
    * predicate encoding "mine OR I attend OR I hold meeting.view.all" would be
    * a second copy of the rule in another language, and the two would drift.
    */
-  const visible = rows.filter((m) =>
-    can(actor, 'meeting.view', {
-      orgId: actor.orgId,
-      createdByUserId: m.createdByUserId,
-      attendeeIds: m.attendeeIds,
-    }),
-  )
+  const visible = visibleTo(actor, rows)
 
   const startWall = toWallClock(weekStart, zone)
   const endWall = toWallClock(addDays(weekStart, 6, zone), zone)
@@ -78,7 +54,7 @@ export default async function CalendarPage({
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader title="Calendar" />
       <CalendarView
-        meetings={visible.map(toDto)}
+        meetings={visible.map((m) => toMeetingDto(actor, m))}
         people={people.map((p) => ({ id: p.id, fullName: p.fullName }))}
         clients={clients.map((c) => ({
           id: c.id,
