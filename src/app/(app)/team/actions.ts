@@ -13,6 +13,33 @@ export interface CreateUserState {
   created?: string
 }
 
+/**
+ * Role changes. Gated on user.manage, which §3 gives to Owner only — so a
+ * Manager can add people but cannot promote them, including themselves.
+ */
+export async function setUserRoleAction(
+  userId: string,
+  roleName: string,
+): Promise<{ error?: string }> {
+  try {
+    const { setUserRole } = await import('@/server/team/mutations')
+    await setUserRole(userId, roleName)
+  } catch (error) {
+    if (error instanceof Error) {
+      // ForbiddenError and LastOwnerError both carry a sentence already
+      // written in the product's voice.
+      if (error.name === 'ForbiddenError' || error.name === 'LastOwnerError') {
+        return { error: error.message }
+      }
+      return { error: 'That change did not save. Try again.' }
+    }
+    throw error
+  }
+
+  revalidatePath('/team')
+  return {}
+}
+
 const input = z.object({
   fullName: z.string().trim().min(1, 'Enter a name.').max(200),
   email: z.string().trim().toLowerCase().min(3).max(320).includes('@', {

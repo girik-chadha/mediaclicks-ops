@@ -1,9 +1,12 @@
 import { redirect } from 'next/navigation'
 import { Nav, type NavItem } from '@/components/shell/nav'
+import type { PaletteItem } from '@/components/shell/command-palette'
 import { Rail } from '@/components/shell/rail'
 import { can } from '@/lib/permissions'
+import { addDays, formatTime, startOfDay } from '@/lib/time'
 import { signOut } from '@/server/auth'
 import { getActor } from '@/server/auth/session'
+import { listMeetingsInRange, listTeam } from '@/server/meetings/queries'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const actor = await getActor()
@@ -17,15 +20,68 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     await signOut({ redirectTo: '/login' })
   }
 
+  const zone = actor.timezone
+  const dayStart = startOfDay(new Date(), zone)
+
+  const [today, team] = await Promise.all([
+    listMeetingsInRange(actor, dayStart, addDays(dayStart, 1, zone)),
+    listTeam(actor),
+  ])
+
+  const visibleToday = today.filter((m) =>
+    can(actor, 'meeting.view', {
+      orgId: actor.orgId,
+      createdByUserId: m.createdByUserId,
+      attendeeIds: m.attendeeIds,
+    }),
+  )
+
   const items: NavItem[] = [
     { href: '/home', label: 'Home' },
-    { href: '/today', label: 'Today' },
+    {
+      href: '/today',
+      label: 'Today',
+      count: String(visibleToday.filter((m) => m.status !== 'cancelled').length),
+    },
     { href: '/calendar', label: 'Calendar' },
   ]
 
   // Team is hidden from people who cannot add anyone. Hiding it is
   // presentation only — the page and its action both enforce (§3).
-  if (can(actor, 'user.invite')) items.push({ href: '/team', label: 'Team' })
+  if (can(actor, 'user.invite')) {
+    items.push({ href: '/team', label: 'Team', count: String(team.length) })
+  }
+
+  const paletteItems: PaletteItem[] = [
+    { id: 'nav-home', label: 'Home', meta: 'SCREEN', group: 'Go to', href: '/home' },
+    { id: 'nav-today', label: 'Today', meta: 'SCREEN', group: 'Go to', href: '/today' },
+    { id: 'nav-cal', label: 'Calendar', meta: 'SCREEN', group: 'Go to', href: '/calendar' },
+    ...(can(actor, 'user.invite')
+      ? [
+          {
+            id: 'nav-team',
+            label: 'Team & permissions',
+            meta: 'SCREEN',
+            group: 'Go to',
+            href: '/team',
+          },
+        ]
+      : []),
+    ...visibleToday.map((m) => ({
+      id: m.id,
+      label: m.title,
+      meta: formatTime(m.startsAt, zone),
+      group: 'Today',
+      href: '/today',
+    })),
+    ...team.map((p) => ({
+      id: p.id,
+      label: p.fullName,
+      meta: 'PERSON',
+      group: 'People',
+      href: can(actor, 'user.invite') ? '/team' : '/home',
+    })),
+  ]
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -46,6 +102,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               items={items}
               fullName={actor.fullName}
               roleLabel={actor.roleNames[0] ?? 'Member'}
+              paletteItems={paletteItems}
               onSignOut={handleSignOut}
             />
           </div>
