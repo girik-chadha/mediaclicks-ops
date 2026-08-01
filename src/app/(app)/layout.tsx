@@ -17,7 +17,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     await signOut({ redirectTo: '/login' })
   }
 
-  const items: NavItem[] = [{ href: '/today', label: 'Today' }]
+  const items: NavItem[] = [
+    { href: '/today', label: 'Today' },
+    { href: '/calendar', label: 'Calendar' },
+  ]
 
   // Team is hidden from people who cannot add anyone. Hiding it is
   // presentation only — the page and its action both enforce (§3).

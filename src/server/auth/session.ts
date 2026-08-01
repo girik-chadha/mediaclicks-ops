@@ -17,6 +17,12 @@ export interface SessionActor extends Actor {
   readonly email: string
   readonly fullName: string
   /**
+   * The user's stored IANA zone, not the browser's. Rendering from a single
+   * server-known zone means the server and client agree, so no timestamp can
+   * cause a hydration mismatch.
+   */
+  readonly timezone: string
+  /**
    * Display only — for the avatar menu and the team screen.
    *
    * Nothing branches on these. Authorization reads `permissions`, never a
@@ -49,6 +55,7 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
       orgId: users.orgId,
       email: users.email,
       fullName: users.fullName,
+      timezone: users.timezone,
       deactivatedAt: users.deactivatedAt,
     })
     .from(users)
@@ -82,6 +89,7 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
     orgId: user.orgId,
     email: user.email,
     fullName: user.fullName,
+    timezone: user.timezone,
     roleNames: held.map((row) => row.name),
     permissions: new Set(granted.map((row) => row.key as PermissionKey)),
   }

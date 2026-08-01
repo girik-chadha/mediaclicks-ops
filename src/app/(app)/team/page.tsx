@@ -1,9 +1,10 @@
-import { asc, eq } from 'drizzle-orm'
-import { TodayStamp } from '@/components/shell/today-stamp'
+import { asc, eq, inArray } from 'drizzle-orm'
+import { PageHeader } from '@/components/shell/page-header'
 import { can } from '@/lib/permissions'
 import { getActor } from '@/server/auth/session'
 import { db } from '@/server/db'
 import { roles, userRoles, users } from '@/server/db/schema'
+import { inOrg } from '@/server/scope'
 import { CreateUserForm } from './create-user-form'
 
 export default async function TeamPage() {
@@ -15,36 +16,57 @@ export default async function TeamPage() {
   if (!actor || !can(actor, 'user.invite')) {
     const firstName = actor?.fullName.split(' ')[0] ?? 'You'
     return (
-      <div className="p-6">
-        <p className="text-body text-slate">{firstName} can&rsquo;t add people to the team.</p>
+      <div className="flex h-full flex-col">
+        <PageHeader title="Team" />
+        <div className="p-6">
+          <p className="text-body text-slate">{firstName} can&rsquo;t add people to the team.</p>
+        </div>
       </div>
     )
   }
 
+  /**
+   * Two queries rather than one LEFT JOIN.
+   *
+   * Joining roles inline returns one row per user-role pair, so anyone
+   * holding two roles is listed twice and counted twice. Roles are gathered
+   * separately and folded in, so a person is a person.
+   */
   const roster = await db
     .select({
       id: users.id,
       fullName: users.fullName,
       email: users.email,
       deactivatedAt: users.deactivatedAt,
-      roleName: roles.name,
     })
     .from(users)
-    .leftJoin(userRoles, eq(userRoles.userId, users.id))
-    .leftJoin(roles, eq(roles.id, userRoles.roleId))
-    .where(eq(users.orgId, actor.orgId))
+    .where(inOrg(users, actor))
     .orderBy(asc(users.fullName))
 
-  return (
-    <div>
-      <header className="flex h-12 items-center justify-between border-b border-rule bg-surface px-6">
-        <div className="flex items-baseline gap-3">
-          <h1 className="font-display text-title">Team</h1>
-          <TodayStamp />
-        </div>
-      </header>
+  const held =
+    roster.length === 0
+      ? []
+      : await db
+          .select({ userId: userRoles.userId, name: roles.name })
+          .from(userRoles)
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(
+            inArray(
+              userRoles.userId,
+              roster.map((p) => p.id),
+            ),
+          )
 
-      <div className="p-6">
+  const rolesByUser = new Map<string, string[]>()
+  for (const row of held) {
+    rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.name])
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader title="Team" />
+
+      <div className="min-h-0 flex-1 overflow-auto p-6">
         <section className="rounded-sm border border-rule bg-surface p-4">
           <h2 className="text-micro uppercase text-slate">Add someone</h2>
           <div className="mt-3">
@@ -58,15 +80,19 @@ export default async function TeamPage() {
           </h2>
           <ul className="mt-3 divide-y divide-rule border-y border-rule">
             {roster.map((person) => (
-              <li key={`${person.id}-${person.roleName ?? 'none'}`} className="flex items-center gap-4 py-3">
+              <li key={person.id} className="flex items-center gap-4 py-3">
                 <span className="min-w-0 flex-1 truncate text-body">
                   {person.fullName}
                   {person.deactivatedAt && (
                     <span className="ml-2 text-micro uppercase text-slate">Deactivated</span>
                   )}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-label text-slate">{person.email}</span>
-                <span className="text-micro uppercase text-slate">{person.roleName ?? 'No role'}</span>
+                <span className="min-w-0 flex-1 truncate text-label text-slate">
+                  {person.email}
+                </span>
+                <span className="text-micro uppercase text-slate">
+                  {rolesByUser.get(person.id)?.join(' · ') ?? 'No role'}
+                </span>
               </li>
             ))}
           </ul>
