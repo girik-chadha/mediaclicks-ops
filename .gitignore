@@ -18,3 +18,8 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Machine-specific: `npx skills add` writes absolute-path symlinks here that
+# point into one developer's home directory. The skills themselves live in
+# .agents/skills/ and are committed; re-run the installer to relink.
+.claude/skills/
