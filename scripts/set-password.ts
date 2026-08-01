@@ -54,9 +54,15 @@ async function main() {
   if (!databaseUrl) throw new Error('DATABASE_URL is not set. See .env.example.')
 
   const first = await prompt(`New password for ${email}: `)
+  // Echo the length, never the value. Input is hidden, so a swallowed or
+  // duplicated keystroke would otherwise be invisible — and it would be
+  // invisible identically in the confirmation, which is how you end up
+  // storing a hash of something you did not type.
+  console.log(`  captured ${first.length} characters`)
   if (first.length < 12) throw new Error('Use at least 12 characters.')
 
   const second = await prompt('Confirm: ')
+  console.log(`  captured ${second.length} characters`)
   if (first !== second) throw new Error('Those did not match. Nothing was changed.')
 
   const client = postgres(databaseUrl, { max: 1, prepare: false })
