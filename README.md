@@ -116,6 +116,40 @@ npm run typecheck && npm run lint && npm test
 
 ---
 
+## Deployment
+
+Vercel, with the database on Supabase.
+
+**Functions are pinned to `sin1` (Singapore) in `vercel.json`.** The Supabase
+project is in `ap-southeast-1`, and Vercel defaults to `iad1` (Washington DC).
+Left at the default, every query would make a round trip across the Pacific —
+roughly 200ms each, several times per page render, on a product whose whole
+job is answering "what's next" in about four seconds.
+
+Environment variables to set in the Vercel dashboard:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | The Supabase **transaction pooler** URI (port `6543`), not the direct connection. Percent-encode reserved characters in the password: `#` becomes `%23`. |
+| `AUTH_SECRET` | A fresh secret from `npx auth secret`. Never the development one. |
+
+Port 6543 matters: `src/server/db/index.ts` detects it and disables named
+prepared statements, which transaction-mode pooling cannot support. Pointing
+production at 5432 would work but would hold a session per function instance,
+which is the resource serverless is worst at.
+
+**Migrations do not run on deploy, deliberately.** Run them yourself against
+production before releasing a schema change:
+
+```bash
+npm run db:migrate
+```
+
+A migration wired into the build command runs on every deploy including
+rollbacks, which is how a rollback becomes an outage. The trade-off is that
+deploying a schema-dependent change before its migration will fail at runtime;
+the ordering is a release step, not something to automate away.
+
 ## Design system
 
 The token layer in [`src/app/globals.css`](src/app/globals.css) is extracted
