@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-import { cancelMeetingAction } from '@/app/(app)/calendar/actions'
+import { cancelMeetingAction, retryLinkAction } from '@/app/(app)/calendar/actions'
 import { providerCode, providerLabel } from '@/lib/meetings/schema'
 import { formatRange } from '@/lib/time'
 import { NewMeetingModal } from './new-meeting-modal'
@@ -372,6 +372,19 @@ function DetailPanel({
     })
   }
 
+  function retryLink() {
+    setError(null)
+    startTransition(async () => {
+      const result = await retryLinkAction(meeting.id)
+      if (result.error) setError(result.error)
+      else if (!result.attached) {
+        setError(
+          `${providerLabel(meeting.conferencingProvider)} still isn't reachable. The meeting is unaffected.`,
+        )
+      }
+    })
+  }
+
   return (
     <aside className="animate-panel-in fixed inset-y-0 right-0 z-40 w-[480px] max-w-full overflow-auto border-l border-rule bg-surface shadow-float">
       <div className="flex h-12 items-center justify-between border-b border-rule pl-6 pr-4">
@@ -412,6 +425,27 @@ function DetailPanel({
             >
               Join {providerLabel(meeting.conferencingProvider)}
             </a>
+          ) : meeting.needsLinkRetry ? (
+            /* §4.2: the link failed but the meeting was kept. §8: say what
+               happened and what to do — no apology, no "Oops". */
+            <div
+              className="rounded-sm border border-rule bg-paper p-4"
+              style={{ borderLeft: '2px solid var(--live)' }}
+            >
+              <div className="text-micro uppercase text-slate">Link not created</div>
+              <p className="mt-1 text-body leading-[1.5]">
+                {providerLabel(meeting.conferencingProvider)} couldn&rsquo;t create a link.
+                The meeting is saved.
+              </p>
+              <button
+                type="button"
+                onClick={retryLink}
+                disabled={pending}
+                className="mt-3 h-8 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal disabled:opacity-60"
+              >
+                {pending ? 'Retrying' : 'Retry'}
+              </button>
+            </div>
           ) : (
             // The absence of a button must read as deliberate, not broken (§6.4).
             <div className="rounded-sm border border-rule bg-paper p-4">

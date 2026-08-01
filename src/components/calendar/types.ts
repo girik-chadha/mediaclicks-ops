@@ -16,6 +16,8 @@ export interface MeetingDto {
   /** Decided server-side by can(). The UI hides; the server enforces (§3). */
   canEdit: boolean
   canCancel: boolean
+  /** The platform promises a link and there isn't one — §4.2's retry state. */
+  needsLinkRetry: boolean
 }
 
 export interface PersonDto {

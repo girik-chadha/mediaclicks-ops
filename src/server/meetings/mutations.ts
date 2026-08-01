@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { MeetingInput, MeetingUpdateInput } from '@/lib/meetings/schema'
 import { requirePermission } from '../auth/require'
 import { requireActor, type SessionActor } from '../auth/session'
+import { attachConferenceLink, revokeConferenceLink } from '../conferencing'
 import { db } from '../db'
 import { auditLog, meetingAttendees, meetings } from '../db/schema'
 import { inOrg } from '../scope'
@@ -67,7 +68,7 @@ export async function createMeeting(input: MeetingInput): Promise<string> {
 
   const clientId = input.type === 'client' ? input.clientId : null
 
-  return db.transaction(async (tx) => {
+  const meetingId = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(meetings)
       .values({
@@ -111,6 +112,13 @@ export async function createMeeting(input: MeetingInput): Promise<string> {
 
     return meetingId
   })
+
+  // Deliberately after the commit. Inside the transaction, a slow or failing
+  // platform would roll the meeting back — which §4.2 forbids outright: the
+  // meeting saves either way and the UI offers a retry.
+  await attachConferenceLink(actor, meetingId)
+
+  return meetingId
 }
 
 export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
@@ -160,6 +168,16 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
       after: auditShape({ ...input, clientId }),
     })
   })
+
+  // §4.1.1: changing the platform revokes the old link and issues a new one.
+  if (input.conferencingProvider !== existing.conferencingProvider) {
+    await revokeConferenceLink(actor, input.id)
+    await db
+      .update(meetings)
+      .set({ conferenceUrl: null, conferenceExternalId: null })
+      .where(and(inOrg(meetings, actor), eq(meetings.id, input.id)))
+    await attachConferenceLink(actor, input.id)
+  }
 }
 
 /**
@@ -192,6 +210,28 @@ export async function cancelMeeting(id: string, reason?: string): Promise<void> 
       after: { ...auditShape(existing), status: 'cancelled', reason: reason ?? null },
     })
   })
+
+  // Best effort, and after the commit. A platform being down must not stop
+  // someone cancelling a meeting.
+  await revokeConferenceLink(actor, id)
+}
+
+/**
+ * Retries a link that failed at creation (§4.2's retry action).
+ *
+ * Gated on meeting.edit rather than being open to anyone who can see the
+ * meeting: issuing a link emails everyone on it.
+ */
+export async function retryConferenceLink(id: string): Promise<boolean> {
+  const { actor, existing } = await loadForWrite(id)
+
+  await requirePermission('meeting.edit', {
+    orgId: existing.orgId,
+    createdByUserId: existing.createdByUserId,
+    attendeeIds: existing.attendeeIds,
+  })
+
+  return attachConferenceLink(actor, id)
 }
 
 /** The pre-image an audit row needs, read through the org-scoped query. */

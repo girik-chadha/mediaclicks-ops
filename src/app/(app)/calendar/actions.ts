@@ -128,6 +128,22 @@ export async function updateMeetingAction(
   }
 }
 
+/** §4.2's retry action for a link that failed at creation. */
+export async function retryLinkAction(
+  id: string,
+): Promise<{ error?: string; attached?: boolean }> {
+  try {
+    const { retryConferenceLink } = await import('@/server/meetings/mutations')
+    const attached = await retryConferenceLink(id)
+    revalidatePath('/calendar')
+    revalidatePath('/today')
+    revalidatePath('/home')
+    return { attached }
+  } catch (error) {
+    return { error: messageFor(error) }
+  }
+}
+
 export async function cancelMeetingAction(id: string): Promise<{ error?: string }> {
   try {
     await cancelMeeting(id)

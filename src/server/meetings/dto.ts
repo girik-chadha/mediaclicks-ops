@@ -2,6 +2,7 @@ import 'server-only'
 import type { MeetingDto } from '@/components/calendar/types'
 import { can } from '@/lib/permissions'
 import type { SessionActor } from '../auth/session'
+import { needsLinkRetry } from '../conferencing'
 import type { MeetingRow } from './queries'
 
 /**
@@ -36,6 +37,7 @@ export function toMeetingDto(actor: SessionActor, m: MeetingRow): MeetingDto {
     attendees: m.attendees,
     canEdit: can(actor, 'meeting.edit', subject),
     canCancel: can(actor, 'meeting.delete', subject),
+    needsLinkRetry: needsLinkRetry(m),
   }
 }
 
