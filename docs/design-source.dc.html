@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Instrument+Sans:wght@400;500;600&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #14161A; --slate: #5B6472; --paper: #F7F8FA; --surface: #FFFFFF;
+    --rule: #E2E5EA; --signal: #0B7B8A; --live: #D6216B;
+    --fill-signal: rgba(11,123,138,0.12); --fill-signal-hi: rgba(11,123,138,0.18);
+    --fill-live: rgba(214,33,107,0.12); --hover: rgba(226,229,234,0.4);
+    --invert: #14161A; --invert-fg: #FFFFFF; --veil: rgba(20,22,26,0.4);
+    --shadow: 0 8px 24px -8px rgba(20,22,26,0.16);
+  }
+  [data-theme="dark"] {
+    --ink: #F2F4F7; --slate: #8A94A3; --paper: #101216; --surface: #191C21;
+    --rule: #282C33; --signal: #2AA5B5; --live: #D6216B;
+    --fill-signal: rgba(42,165,181,0.16); --fill-signal-hi: rgba(42,165,181,0.24);
+    --fill-live: rgba(214,33,107,0.18); --hover: rgba(40,44,51,0.5);
+    --invert: #F2F4F7; --invert-fg: #101216; --veil: rgba(4,6,9,0.6);
+    --shadow: 0 8px 24px -8px rgba(0,0,0,0.6);
+  }
+  html, body { margin: 0; padding: 0; background: var(--paper); }
+  body { font-family: "Instrument Sans", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: var(--signal); text-decoration: none; }
+  a:hover { color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  ::selection { background: var(--fill-signal); }
+  input, textarea, select, button { font-family: inherit; color: var(--ink); }
+  input::placeholder, textarea::placeholder { color: var(--slate); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
+  *:hover > ::-webkit-scrollbar-thumb, *:hover::-webkit-scrollbar-thumb { background: var(--rule); }
+  @keyframes riseIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: none; } }
+  @keyframes panelIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes veilIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes runOut { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @keyframes shimmer { from { opacity: 0.4; } to { opacity: 0.8; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</helmet>
+
+<div style="display: flex; height: 100vh; width: 100%; overflow: hidden; background: var(--paper); color: var(--ink)">
+
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+  <div style="display: flex; width: 100%; height: 100%">
+
+    <div style="position: relative; z-index: 10; width: 56px; flex: 0 0 56px; border-right: 1px solid var(--rule); background: var(--surface); display: flex; flex-direction: column">
+      <div style="height: 48px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--rule)">
+        <div style="width: 10px; height: 10px; border: 2px solid var(--ink); border-radius: 2px"></div>
+      </div>
+      <div style="flex: 1; position: relative; padding: 8px 0">
+        <div style="position: absolute; inset: 8px 0">
+          <sc-for list="{{ railHours }}" as="h" hint-placeholder-count="9">
+            <div style="position: absolute; left: 0; right: 0; top: {{ h.top }}%; display: flex; align-items: center; gap: 4px">
+              <div style="width: 8px; height: 1px; background: var(--rule)"></div>
+              <div style="font-family: 'Martian Mono', monospace; font-size: 9px; letter-spacing: -0.02em; color: var(--slate)">{{ h.label }}</div>
+            </div>
+          </sc-for>
+          <sc-for list="{{ railMarks }}" as="m" hint-placeholder-count="6">
+            <div title="{{ m.label }}" style="position: absolute; right: 8px; top: {{ m.top }}%; width: 20px; height: 3px; background: {{ m.fill }}; border: 1px solid {{ m.stroke }}; opacity: {{ m.op }}; transition: background 400ms linear, border-color 400ms linear"></div>
+          </sc-for>
+          <div style="position: absolute; left: 0; right: 0; top: {{ railNow }}%; height: 1px; background: var(--live)">
+            <div style="position: absolute; left: 0; top: -1.5px; width: 4px; height: 4px; border-radius: 50%; background: var(--live)"></div>
+          </div>
+        </div>
+      </div>
+      <div style="border-top: 1px solid var(--rule); padding: 10px 0; text-align: center">
+        <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.06em; color: var(--live); font-variant-numeric: tabular-nums">{{ clock }}</div>
+        <div style="font-family: 'Instrument Sans', sans-serif; font-size: 0.5625rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 4px">{{ tz }}</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: var(--paper)">
+        <div style="width: 340px">
+          <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 2.75rem; line-height: 1.05; font-weight: 600; letter-spacing: -0.03em">MediaClicks</div>
+          <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 8px">Operations</div>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 32px">
+            <label style="display: block">
+              <span style="display: block; font-size: 0.8125rem; line-height: 1.4; font-weight: 500; color: var(--slate); margin-bottom: 4px">Work email</span>
+              <input type="email" autoComplete="email" placeholder="you@mediaclicks.ae" style="width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem" />
+            </label>
+            <label style="display: block">
+              <span style="display: block; font-size: 0.8125rem; line-height: 1.4; font-weight: 500; color: var(--slate); margin-bottom: 4px">Password</span>
+              <input type="password" autoComplete="current-password" placeholder="••••••••" style="width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem" />
+            </label>
+            <button type="button" onClick="{{ signIn }}" style="height: 44px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Sign in</button>
+            <button type="button" onClick="{{ signIn }}" style="height: 44px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Continue with Google</button>
+            <a href="#" style="font-size: 0.8125rem; font-weight: 500">Forgot password</a>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+    <div style="flex: 1; display: flex; min-width: 0">
+
+      <div style="position: relative; z-index: 20; width: 200px; flex: 0 0 200px; border-right: 1px solid var(--rule); background: var(--surface); display: flex; flex-direction: column">
+        <div style="height: 48px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--rule); font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em">MediaClicks</div>
+        <div style="display: flex; flex-direction: column; padding: 12px 8px; gap: 2px">
+          <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="4">
+            <button type="button" onClick="{{ n.go }}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; padding: 0 8px; border: none; border-radius: 2px; background: {{ n.bg }}; color: {{ n.fg }}; font-size: 0.9375rem; font-weight: {{ n.weight }}; text-align: left; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--hover)">
+              <span>{{ n.label }}</span>
+              <span style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: {{ n.countColor }}">{{ n.count }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{ openPalette }}" style="margin: 0 8px; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border: 1px solid var(--rule); border-radius: 2px; background: transparent; color: var(--slate); font-size: 0.8125rem; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">
+          <span>Search</span>
+          <span style="font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em">⌘K</span>
+        </button>
+        <div style="padding: 12px 8px; margin-top: 8px; border-top: 1px solid var(--rule)">
+          <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding: 0 8px 8px">Clients</div>
+          <sc-for list="{{ clients }}" as="c" hint-placeholder-count="5">
+            <button type="button" onClick="{{ c.open }}" style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border: none; border-radius: 2px; background: transparent; font-size: 0.8125rem; color: var(--slate); text-align: left; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--hover)">
+              <span>{{ c.name }}</span>
+              <span style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em">{{ c.n }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="margin-top: auto; border-top: 1px solid var(--rule); padding: 12px; position: relative">
+          <sc-if value="{{ avatarMenu }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; left: 12px; right: 12px; bottom: 60px; z-index: 30; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow); padding: 4px; animation: riseIn 120ms ease-out">
+              <sc-for list="{{ avatarMenuItems }}" as="a" hint-placeholder-count="3">
+                <button type="button" onClick="{{ a.go }}" style="width: 100%; display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 8px; border: none; border-radius: 2px; background: transparent; font-size: 0.8125rem; color: var(--ink); text-align: left; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--hover)">
+                  <span>{{ a.label }}</span>
+                  <span style="font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; color: var(--slate)">{{ a.hint }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <button type="button" onClick="{{ toggleAvatarMenu }}" style="width: 100%; display: flex; align-items: center; gap: 8px; padding: 0; border: none; background: transparent; cursor: pointer; text-align: left">
+            <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--invert); color: var(--invert-fg); display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 600">{{ me.initials }}</div>
+            <div style="min-width: 0">
+              <div style="font-size: 0.8125rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ me.name }}</div>
+              <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ me.title }}</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <div style="height: 48px; flex: 0 0 48px; border-bottom: 1px solid var(--rule); background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 0 24px">
+          <div style="display: flex; align-items: baseline; gap: 12px">
+            <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em">{{ pageTitle }}</div>
+            <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate)">{{ todayStamp }}</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <button type="button" onClick="{{ openShortcuts }}" aria-label="Keyboard shortcuts" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); font-size: 0.8125rem; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--rule)">?</button>
+            <button type="button" onClick="{{ openAssistant }}" style="height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Assistant</button>
+            <button type="button" onClick="{{ openModal }}" style="height: 32px; padding: 0 12px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">New meeting</button>
+          </div>
+        </div>
+
+        <div style="flex: 1; min-height: 0; display: flex">
+          <div style="flex: 1; min-width: 0; overflow: auto; transition: flex-basis 200ms ease-out">
+
+            <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+              <div style="padding: 32px 24px 48px; max-width: 1280px; min-width: 660px">
+
+                <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--rule)">
+                  <div style="min-width: 0">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ home.dateline }}</div>
+                    <h1 style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 2.75rem; line-height: 1.05; font-weight: 600; letter-spacing: -0.03em; margin: 12px 0 0">{{ home.greeting }}</h1>
+                    <div style="font-size: 0.9375rem; line-height: 1.5; color: var(--slate); margin-top: 8px; max-width: 60ch; text-wrap: pretty">{{ home.summary }}</div>
+                  </div>
+                  <div style="display: flex; gap: 32px; flex: 0 0 auto; padding-bottom: 4px">
+                    <sc-for list="{{ home.stats }}" as="s" hint-placeholder-count="3">
+                      <div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; color: {{ s.color }}; font-variant-numeric: tabular-nums">{{ s.value }}</div>
+                        <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 6px">{{ s.label }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <section style="margin-top: 32px">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                    <h2 style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin: 0">Up next</h2>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ next.platformCode }}</div>
+                  </div>
+                  <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px solid {{ next.accent }}; border-radius: 2px; background: var(--surface); padding: 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; transition: border-color 400ms linear">
+                    <div style="min-width: 0">
+                      <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ next.eyebrow }}</div>
+                      <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px">{{ next.title }}</div>
+                      <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px">
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; color: {{ next.countdownColor }}; font-variant-numeric: tabular-nums; transition: color 600ms linear">{{ next.countdown }}</div>
+                        <div style="width: 1px; height: 16px; background: var(--rule)"></div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ next.range }}</div>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px">
+                        <sc-for list="{{ next.people }}" as="p" hint-placeholder-count="4">
+                          <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ p }}</div>
+                        </sc-for>
+                        <div style="font-size: 0.8125rem; color: var(--slate); margin-left: 4px">{{ next.attendeeLine }}</div>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto">
+                      <sc-if value="{{ next.hasLink }}" hint-placeholder-val="{{ true }}">
+                        <button type="button" onClick="{{ next.open }}" style="height: 44px; padding: 0 24px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Join {{ next.platform }}</button>
+                      </sc-if>
+                      <sc-if value="{{ next.noLink }}" hint-placeholder-val="{{ false }}">
+                        <div style="text-align: right">
+                          <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Call the client</div>
+                          <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em; margin-top: 4px">{{ next.phone }}</div>
+                        </div>
+                      </sc-if>
+                      <button type="button" onClick="{{ next.details }}" style="height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Details</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section style="margin-top: 40px">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                    <h2 style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin: 0">Needs you</h2>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ home.needsCount }}</div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px">
+                    <sc-for list="{{ home.needs }}" as="n" hint-placeholder-count="3">
+                      <button type="button" onClick="{{ n.go }}" style="text-align: left; padding: 16px; border: 1px solid var(--rule); border-left: {{ n.bl }}; border-radius: 2px; background: var(--surface); cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: border-left-width 80ms linear, background 80ms linear" style-hover="border-left-width: 3px; background: var(--hover)">
+                        <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ n.kind }}</div>
+                        <div style="font-size: 0.9375rem; line-height: 1.4; margin-top: 8px; text-wrap: pretty">{{ n.what }}</div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); margin-top: 12px; font-variant-numeric: tabular-nums">{{ n.meta }}</div>
+                      </button>
+                    </sc-for>
+                  </div>
+                </section>
+
+                <section style="margin-top: 40px">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                    <h2 style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin: 0">The rest of your day</h2>
+                    <button type="button" onClick="{{ home.goToday }}" style="border: none; background: transparent; font-size: 0.8125rem; font-weight: 500; color: var(--signal); cursor: pointer; padding: 0">Full run of day</button>
+                  </div>
+                  <sc-for list="{{ home.upcoming }}" as="r" hint-placeholder-count="4">
+                    <button type="button" onClick="{{ r.open }}" onMouseEnter="{{ r.enter }}" onMouseLeave="{{ r.leave }}" style="width: 100%; display: flex; align-items: center; gap: 16px; padding: 12px 12px 12px 10px; border: none; border-bottom: 1px solid var(--rule); border-left: {{ r.bl }}; background: {{ r.bg }}; text-align: left; cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: background 80ms linear">
+                      <div style="width: 108px; flex: 0 0 108px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: {{ r.timeColor }}; font-variant-numeric: tabular-nums; transition: color 80ms linear">{{ r.range }}</div>
+                      <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); height: 15px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.client }}</div>
+                        <div style="font-size: 0.9375rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.title }}</div>
+                      </div>
+                      <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px">
+                        <sc-for list="{{ r.people }}" as="p" hint-placeholder-count="3">
+                          <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.5625rem; font-weight: 600">{{ p }}</div>
+                        </sc-for>
+                      </div>
+                      <div style="width: 64px; flex: 0 0 64px; text-align: right; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ r.platformCode }}</div>
+                    </button>
+                  </sc-for>
+                  <sc-if value="{{ home.dayDone }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 24px 0; font-size: 0.9375rem; color: var(--slate)">Nothing else today. Tomorrow starts at 09:00.</div>
+                  </sc-if>
+                </section>
+
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; margin-top: 40px">
+                  <section>
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                      <h2 style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin: 0">Since you were last here</h2>
+                      <button type="button" onClick="{{ home.goChat }}" style="border: none; background: transparent; font-size: 0.8125rem; font-weight: 500; color: var(--signal); cursor: pointer; padding: 0">Open chat</button>
+                    </div>
+                    <sc-for list="{{ home.activity }}" as="a" hint-placeholder-count="4">
+                      <div style="display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rule)">
+                        <div style="width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ a.initials }}</div>
+                        <div style="flex: 1; min-width: 0">
+                          <div style="display: flex; align-items: baseline; gap: 8px">
+                            <div style="font-size: 0.9375rem; font-weight: 600">{{ a.who }}</div>
+                            <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ a.when }}</div>
+                          </div>
+                          <div style="font-size: 0.9375rem; line-height: 1.5; text-wrap: pretty">{{ a.what }}</div>
+                        </div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; color: var(--slate); padding-top: 4px">{{ a.where }}</div>
+                      </div>
+                    </sc-for>
+                  </section>
+
+                  <section>
+                    <h2 style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">Clients this week</h2>
+                    <sc-for list="{{ home.clientsWeek }}" as="c" hint-placeholder-count="4">
+                      <button type="button" onClick="{{ c.open }}" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0; border: none; border-bottom: 1px solid var(--rule); background: transparent; text-align: left; cursor: pointer; font-family: 'Instrument Sans', sans-serif">
+                        <div style="flex: 1; min-width: 0">
+                          <div style="font-size: 0.9375rem; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.name }}</div>
+                          <div style="font-size: 0.8125rem; color: var(--slate)">{{ c.region }}</div>
+                        </div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ c.count }}</div>
+                      </button>
+                    </sc-for>
+                    <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px solid var(--signal); border-radius: 2px; padding: 12px">
+                      <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--signal)">Assistant</div>
+                      <div style="font-size: 0.9375rem; line-height: 1.5; margin-top: 6px">Ask it to move, cancel, or find time. It shows you exactly what it will do before anything is sent.</div>
+                      <button type="button" onClick="{{ openAssistant }}" style="height: 32px; margin-top: 12px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Open assistant</button>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isTodayScreen }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 24px; max-width: 1440px; min-width: 620px">
+                <div style="border: 1px solid var(--rule); border-left: 2px solid {{ next.accent }}; border-radius: 2px; background: var(--surface); padding: 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; transition: border-color 400ms linear">
+                  <div style="min-width: 0">
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ next.eyebrow }}</div>
+                      <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ next.platformCode }}</div>
+                    </div>
+                    <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px">{{ next.title }}</div>
+                    <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px">
+                      <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; color: {{ next.countdownColor }}; font-variant-numeric: tabular-nums; transition: color 600ms linear">{{ next.countdown }}</div>
+                      <div style="width: 1px; height: 16px; background: var(--rule)"></div>
+                      <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ next.range }}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px">
+                      <sc-for list="{{ next.people }}" as="p" hint-placeholder-count="4">
+                        <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ p }}</div>
+                      </sc-for>
+                      <div style="font-size: 0.8125rem; color: var(--slate); margin-left: 4px">{{ next.attendeeLine }}</div>
+                    </div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto">
+                    <sc-if value="{{ next.hasLink }}" hint-placeholder-val="{{ true }}">
+                      <button type="button" onClick="{{ next.open }}" style="height: 44px; padding: 0 24px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Join {{ next.platform }}</button>
+                    </sc-if>
+                    <sc-if value="{{ next.noLink }}" hint-placeholder-val="{{ false }}">
+                      <div style="text-align: right">
+                        <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Call the client</div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em; margin-top: 4px">{{ next.phone }}</div>
+                      </div>
+                    </sc-if>
+                    <button type="button" onClick="{{ next.details }}" style="height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Details</button>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 32px; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Run of day</div>
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ dayCountLine }}</div>
+                </div>
+
+                <div style="border-bottom: 1px solid var(--rule)">
+                  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+                    <div>
+                      <sc-if value="{{ r.nowBefore }}" hint-placeholder-val="{{ false }}">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 0">
+                          <div style="width: 4px; height: 4px; border-radius: 50%; background: var(--live)"></div>
+                          <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--live); font-variant-numeric: tabular-nums">{{ clock }}</div>
+                          <div style="flex: 1; height: 1px; background: var(--live)"></div>
+                        </div>
+                      </sc-if>
+                      <button type="button" onClick="{{ r.open }}" onMouseEnter="{{ r.enter }}" onMouseLeave="{{ r.leave }}" style="width: 100%; display: flex; align-items: center; gap: 16px; padding: 12px 12px 12px 10px; border: none; border-top: 1px solid var(--rule); border-left: {{ r.bl }}; background: {{ r.bg }}; opacity: {{ r.op }}; text-align: left; cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: background 400ms linear, border-color 400ms linear, opacity 400ms linear">
+                        <div style="width: 108px; flex: 0 0 108px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; line-height: 1.2; letter-spacing: -0.02em; color: {{ r.timeColor }}; font-variant-numeric: tabular-nums; transition: color 80ms linear">{{ r.range }}</div>
+                        <div style="width: 52px; flex: 0 0 52px; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ r.dur }}</div>
+                        <div style="flex: 1; min-width: 0">
+                          <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); height: 15px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.client }}</div>
+                          <div style="font-size: 0.9375rem; line-height: 1.5; text-decoration: {{ r.strike }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.title }}</div>
+                        </div>
+                        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px">
+                          <sc-for list="{{ r.people }}" as="p" hint-placeholder-count="3">
+                            <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.5625rem; font-weight: 600">{{ p }}</div>
+                          </sc-for>
+                        </div>
+                        <div style="width: 64px; flex: 0 0 64px; text-align: right; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ r.platformCode }}</div>
+                        <div style="width: 84px; flex: 0 0 84px; text-align: right; font-size: 0.8125rem; font-weight: 500; color: {{ r.actionColor }}">{{ r.action }}</div>
+                      </button>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isCalendar }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; height: 100%">
+                <div style="display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--rule); background: var(--surface); flex-wrap: wrap">
+                  <sc-for list="{{ filterMenus }}" as="f" hint-placeholder-count="4">
+                    <button type="button" onClick="{{ f.apply }}" style="height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; color: var(--slate); cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">{{ f.label }}</button>
+                  </sc-for>
+                  <input type="search" value="{{ search }}" onChange="{{ setSearch }}" placeholder="Search meetings" style="height: 28px; width: 180px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem" />
+                  <sc-for list="{{ activeChips }}" as="c" hint-placeholder-count="0">
+                    <button type="button" onClick="{{ c.remove }}" style="height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--signal); border-radius: 2px; background: var(--fill-signal); font-size: 0.8125rem; font-weight: 500; color: var(--ink); cursor: pointer">
+                      <span>{{ c.label }}</span>
+                      <span style="color: var(--slate)">×</span>
+                    </button>
+                  </sc-for>
+                  <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+                    <button type="button" onClick="{{ clearFilters }}" style="height: 28px; padding: 0 8px; border: none; border-radius: 2px; background: transparent; font-size: 0.8125rem; font-weight: 500; color: var(--signal); cursor: pointer">Clear all</button>
+                  </sc-if>
+                  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px">
+                    <button type="button" onClick="{{ prevWeek }}" aria-label="Previous week" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; transition: background 80ms linear" style-hover="background: var(--rule)">←</button>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate)">{{ weekStamp }}</div>
+                    <button type="button" onClick="{{ nextWeek }}" aria-label="Next week" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; transition: background 80ms linear" style-hover="background: var(--rule)">→</button>
+                  </div>
+                </div>
+
+                <sc-if value="{{ weekEmpty }}" hint-placeholder-val="{{ false }}">
+                  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 64px">
+                    <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">{{ emptyWeekLine }}</div>
+                    <button type="button" onClick="{{ openModal }}" style="height: 40px; padding: 0 16px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer">+ New meeting</button>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ weekFilled }}" hint-placeholder-val="{{ true }}">
+                <div style="flex: 1; min-height: 0; overflow: auto; background: var(--surface)">
+                  <div style="display: flex; position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--rule); min-width: 820px">
+                    <div style="width: 64px; flex: 0 0 64px; border-right: 1px solid var(--rule)"></div>
+                    <sc-for list="{{ week }}" as="d" hint-placeholder-count="7">
+                      <div style="flex: 1; min-width: 0; border-right: 1px solid var(--rule); padding: 8px 12px">
+                        <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: {{ d.labelColor }}">{{ d.label }}</div>
+                        <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: {{ d.dateColor }}; margin-top: 2px; font-variant-numeric: tabular-nums">{{ d.date }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; position: relative; min-width: 820px">
+                    <div style="width: 64px; flex: 0 0 64px; border-right: 1px solid var(--rule)">
+                      <sc-for list="{{ hours }}" as="h" hint-placeholder-count="13">
+                        <div style="height: 56px; padding: 4px 8px; text-align: right; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); border-top: 1px solid var(--rule)">{{ h }}</div>
+                      </sc-for>
+                    </div>
+                    <sc-for list="{{ week }}" as="d" hint-placeholder-count="7">
+                      <div style="flex: 1; min-width: 0; border-right: 1px solid var(--rule); position: relative; background: {{ d.bg }}">
+                        <sc-for list="{{ hours }}" as="h" hint-placeholder-count="13">
+                          <div style="height: 56px; border-top: 1px solid var(--rule)"></div>
+                        </sc-for>
+                        <sc-for list="{{ d.events }}" as="e" hint-placeholder-count="3">
+                          <button type="button" onClick="{{ e.open }}" style="position: absolute; top: {{ e.top }}px; height: {{ e.h }}px; left: {{ e.left }}%; width: {{ e.width }}%; padding: 5px 6px; border: 1px solid {{ e.border }}; border-left: {{ e.bl }}; border-radius: 2px; background: {{ e.bg }}; opacity: {{ e.op }}; text-align: left; overflow: hidden; cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: background 400ms linear, border-color 400ms linear, border-left-width 80ms linear, opacity 400ms linear" style-hover="border-left-width: 3px; background: {{ e.bgHover }}">
+                            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 4px">
+                              <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: {{ e.timeColor }}; font-variant-numeric: tabular-nums">{{ e.time }}</div>
+                              <div style="font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; color: var(--slate)">{{ e.platformCode }}</div>
+                            </div>
+                            <div style="font-size: 0.6875rem; line-height: 1.3; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ e.client }}</div>
+                            <div style="font-size: 0.8125rem; line-height: 1.3; text-decoration: {{ e.strike }}; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ e.title }}</div>
+                          </button>
+                        </sc-for>
+                        <sc-if value="{{ d.isToday }}" hint-placeholder-val="{{ true }}">
+                          <div style="position: absolute; left: 0; right: 0; top: {{ gridNow }}px; height: 1px; background: var(--live); z-index: 3">
+                            <div style="position: absolute; left: 0; top: -2.5px; width: 6px; height: 6px; border-radius: 50%; background: var(--live)"></div>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isChat }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; height: 100%; min-width: 640px">
+                <div style="width: 208px; flex: 0 0 208px; border-right: 1px solid var(--rule); background: var(--surface); overflow: auto; padding: 12px 8px">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding: 0 8px 8px">Channels</div>
+                  <sc-for list="{{ channels }}" as="c" hint-placeholder-count="4">
+                    <button type="button" onClick="{{ c.open }}" style="width: 100%; display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 8px; border: none; border-radius: 2px; background: {{ c.bg }}; color: {{ c.fg }}; font-size: 0.8125rem; font-weight: {{ c.weight }}; text-align: left; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--hover)">
+                      <span>{{ c.name }}</span>
+                      <span style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: {{ c.unreadColor }}">{{ c.unread }}</span>
+                    </button>
+                  </sc-for>
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding: 16px 8px 8px">Direct</div>
+                  <sc-for list="{{ dms }}" as="c" hint-placeholder-count="4">
+                    <button type="button" onClick="{{ c.open }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border: none; border-radius: 2px; background: {{ c.bg }}; color: {{ c.fg }}; font-size: 0.8125rem; font-weight: {{ c.weight }}; text-align: left; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--hover)">
+                      <span style="position: relative; display: inline-flex">
+                        <span style="width: 20px; height: 20px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.5rem; font-weight: 600">{{ c.initials }}</span>
+                        <span style="position: absolute; right: -1px; bottom: -1px; width: 6px; height: 6px; border-radius: 50%; background: {{ c.presence }}; border: 1px solid var(--surface)"></span>
+                      </span>
+                      <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.name }}</span>
+                      <span style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: {{ c.unreadColor }}">{{ c.unread }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                  <div style="height: 40px; flex: 0 0 40px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; gap: 8px; padding: 0 24px">
+                    <div style="font-size: 0.9375rem; font-weight: 600">{{ chatTitle }}</div>
+                    <div style="font-size: 0.8125rem; color: var(--slate)">{{ chatSub }}</div>
+                  </div>
+                  <div style="flex: 1; min-height: 0; overflow: auto; padding: 16px 24px">
+                    <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ false }}">
+                      <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px">
+                        <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">No messages yet.</div>
+                        <div style="font-size: 0.9375rem; color: var(--slate)">Start the conversation.</div>
+                      </div>
+                    </sc-if>
+                    <sc-for list="{{ messageGroups }}" as="g" hint-placeholder-count="4">
+                      <div style="display: flex; gap: 12px; padding: 8px 0">
+                        <div style="width: 28px; flex: 0 0 28px">
+                          <sc-if value="{{ g.showAvatar }}" hint-placeholder-val="{{ true }}">
+                            <div style="position: relative">
+                              <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ g.initials }}</div>
+                              <div style="position: absolute; right: -1px; bottom: -1px; width: 6px; height: 6px; border-radius: 50%; background: {{ g.presence }}; border: 1px solid var(--surface)"></div>
+                            </div>
+                          </sc-if>
+                        </div>
+                        <div style="flex: 1; min-width: 0">
+                          <sc-if value="{{ g.showAvatar }}" hint-placeholder-val="{{ true }}">
+                            <div style="display: flex; align-items: baseline; gap: 8px">
+                              <div style="font-size: 0.9375rem; font-weight: 600">{{ g.name }}</div>
+                              <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ g.time }}</div>
+                            </div>
+                          </sc-if>
+                          <sc-for list="{{ g.lines }}" as="l" hint-placeholder-count="2">
+                            <div style="font-size: 0.9375rem; line-height: 1.5; text-wrap: pretty">{{ l }}</div>
+                          </sc-for>
+                          <sc-if value="{{ g.hasCard }}" hint-placeholder-val="{{ false }}">
+                            <button type="button" onClick="{{ g.openCard }}" style="display: block; text-align: left; margin-top: 8px; width: 320px; max-width: 100%; padding: 10px 12px; border: 1px solid {{ g.card.border }}; border-left: {{ g.card.bl }}; border-radius: 2px; background: {{ g.card.bg }}; cursor: pointer; transition: background 80ms linear, border-left-width 80ms linear" style-hover="border-left-width: 3px">
+                              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px">
+                                <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums">{{ g.card.time }}</div>
+                                <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ g.card.platformCode }}</div>
+                              </div>
+                              <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 4px">{{ g.card.client }}</div>
+                              <div style="font-size: 0.9375rem; line-height: 1.4">{{ g.card.title }}</div>
+                            </button>
+                          </sc-if>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="border-top: 1px solid var(--rule); padding: 12px 24px">
+                    <textarea rows="2" onFocus="{{ composerFocus }}" onBlur="{{ composerBlur }}" onKeyDown="{{ composerKey }}" placeholder="Message {{ chatTitle }}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem; line-height: 1.5; resize: none"></textarea>
+                    <sc-if value="{{ showComposerHint }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 6px">Enter sends · Shift + Enter for a new line</div>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isClients }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; height: 100%; min-width: 980px">
+                <div style="flex: 1; min-width: 0; overflow: auto; padding: 24px">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--rule)">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">All clients</div>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ clientCount }}</div>
+                  </div>
+                  <sc-for list="{{ clientRows }}" as="c" hint-placeholder-count="5">
+                    <button type="button" onClick="{{ c.open }}" style="width: 100%; display: flex; align-items: center; gap: 16px; padding: 12px; border: none; border-bottom: 1px solid var(--rule); background: {{ c.bg }}; text-align: left; cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: background 80ms linear" style-hover="background: var(--hover)">
+                      <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 0.9375rem; line-height: 1.5; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.name }}</div>
+                        <div style="font-size: 0.8125rem; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.contact }}</div>
+                      </div>
+                      <div style="width: 120px; flex: 0 0 120px; font-size: 0.8125rem; color: var(--slate); white-space: nowrap">{{ c.region }}</div>
+                      <div style="width: 132px; flex: 0 0 132px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ c.phone }}</div>
+                      <div style="width: 96px; flex: 0 0 96px; text-align: right; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ c.meetings }}</div>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="width: 400px; flex: 0 0 400px; border-left: 1px solid var(--rule); background: var(--surface); overflow: auto; padding: 24px">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Client</div>
+                  <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px">{{ client.name }}</div>
+                  <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px">
+                    <sc-for list="{{ client.fields }}" as="f" hint-placeholder-count="5">
+                      <div style="display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--rule)">
+                        <div style="width: 96px; flex: 0 0 96px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding-top: 2px">{{ f.label }}</div>
+                        <div style="flex: 1; min-width: 0; font-size: 0.9375rem; line-height: 1.4; font-family: {{ f.font }}; letter-spacing: {{ f.tracking }}">{{ f.value }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px solid var(--signal); border-radius: 2px; padding: 12px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--signal)">Region rule</div>
+                    <div style="font-size: 0.9375rem; line-height: 1.5; margin-top: 6px">{{ client.regionRule }}</div>
+                    <button type="button" onClick="{{ openModal }}" style="height: 32px; margin-top: 12px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">New meeting with {{ client.short }}</button>
+                  </div>
+                  <div style="margin-top: 24px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding-bottom: 8px; border-bottom: 1px solid var(--rule)">Meeting history</div>
+                  <sc-for list="{{ client.history }}" as="h" hint-placeholder-count="4">
+                    <div style="display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule); border-left: {{ h.bl }}; padding-left: 8px">
+                      <div style="width: 92px; flex: 0 0 92px; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ h.when }}</div>
+                      <div style="flex: 1; min-width: 0; font-size: 0.8125rem; line-height: 1.4">{{ h.title }}</div>
+                      <div style="font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; color: var(--slate)">{{ h.platformCode }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isTeam }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 24px; max-width: 1440px; min-width: 760px">
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-right: 8px">Role preset</div>
+                  <sc-for list="{{ presets }}" as="p" hint-placeholder-count="3">
+                    <button type="button" onClick="{{ p.pick }}" style="height: 28px; padding: 0 10px; border: 1px solid {{ p.border }}; border-radius: 2px; background: {{ p.bg }}; font-size: 0.8125rem; font-weight: 500; color: {{ p.fg }}; cursor: pointer; transition: background 80ms linear, border-color 80ms linear">{{ p.label }}</button>
+                  </sc-for>
+                  <div style="margin-left: auto; font-size: 0.8125rem; color: var(--slate)">{{ teamNote }}</div>
+                </div>
+
+                <div style="margin-top: 24px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface)">
+                  <div style="display: flex; align-items: flex-end; border-bottom: 1px solid var(--rule); padding: 12px 16px">
+                    <div style="flex: 1; min-width: 200px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Person</div>
+                    <div style="width: 148px; flex: 0 0 148px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Role</div>
+                    <sc-for list="{{ perms }}" as="c" hint-placeholder-count="5">
+                      <div style="width: 116px; flex: 0 0 116px; text-align: center; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ c }}</div>
+                    </sc-for>
+                  </div>
+                  <sc-for list="{{ people }}" as="p" hint-placeholder-count="6">
+                    <div style="display: flex; align-items: center; border-bottom: 1px solid var(--rule); padding: 10px 16px">
+                      <div style="flex: 1; min-width: 200px; display: flex; align-items: center; gap: 12px">
+                        <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ p.initials }}</div>
+                        <div>
+                          <div style="font-size: 0.9375rem; line-height: 1.5">{{ p.name }}</div>
+                          <div style="font-size: 0.8125rem; color: var(--slate)">{{ p.title }}</div>
+                        </div>
+                      </div>
+                      <div style="width: 148px; flex: 0 0 148px; padding-right: 12px">
+                        <select defaultValue="{{ p.role }}" ref="{{ p.selectRef }}" onChange="{{ p.setRole }}" disabled="{{ p.roleLocked }}" aria-label="Role for {{ p.name }}" style="width: 100%; height: 28px; padding: 0 6px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; color: {{ p.roleColor }}; cursor: {{ p.roleCursor }}">
+                          <sc-for list="{{ p.roleOptions }}" as="o" hint-placeholder-count="2">
+                            <option value="{{ o.value }}">{{ o.label }}</option>
+                          </sc-for>
+                        </select>
+                        <sc-if value="{{ p.roleLocked }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-size: 0.6875rem; line-height: 1.3; color: var(--slate); margin-top: 4px">There must be at least one owner.</div>
+                        </sc-if>
+                      </div>
+                      <sc-for list="{{ p.cells }}" as="c" hint-placeholder-count="5">
+                        <div style="width: 116px; flex: 0 0 116px; display: flex; justify-content: center">
+                          <button type="button" onClick="{{ c.toggle }}" disabled="{{ c.locked }}" aria-pressed="{{ c.on }}" aria-label="{{ c.aria }}" style="width: 18px; height: 18px; border: 1px solid {{ c.border }}; border-radius: 2px; background: {{ c.bg }}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600; cursor: {{ c.cursor }}; opacity: {{ c.op }}; padding: 0; transition: background 80ms linear, border-color 80ms linear">{{ c.mark }}</button>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="margin-top: 12px; font-size: 0.8125rem; color: var(--slate)">Emma can't edit other people's meetings. Permissions are enforced on the server; hiding controls is presentation only.</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isDenied }}" hint-placeholder-val="{{ false }}">
+              <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 64px; text-align: center">
+                <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">This page is for owners and managers.</div>
+                <div style="font-size: 0.9375rem; color: var(--slate); max-width: 420px; line-height: 1.5">Ask Rana Haddad to change your role if you need it. Your own profile and meetings are unaffected.</div>
+                <button type="button" onClick="{{ goToday }}" style="height: 40px; margin-top: 8px; padding: 0 16px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Back to today</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 24px; display: flex; gap: 24px; align-items: flex-start; min-width: 1040px; max-width: 1200px">
+                <div style="flex: 1; min-width: 0; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); padding: 24px">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Profile</div>
+                  <div style="display: flex; align-items: center; gap: 16px; margin-top: 16px">
+                    <div style="width: 72px; height: 72px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 600">{{ me.initials }}</div>
+                    <div style="flex: 1; min-width: 0; border: 1px dashed var(--rule); border-radius: 2px; padding: 12px 16px">
+                      <div style="font-size: 0.9375rem; line-height: 1.4">Drop a photo here, or <a href="#">choose a file</a></div>
+                      <div style="font-size: 0.8125rem; color: var(--slate); margin-top: 2px">Square crop, at least 256 px. You'll be able to reposition it.</div>
+                    </div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px">
+                    <sc-for list="{{ profileFields }}" as="f" hint-placeholder-count="5">
+                      <label style="display: block">
+                        <span style="display: block; font-size: 0.8125rem; font-weight: 500; color: var(--slate); margin-bottom: 4px">{{ f.label }}</span>
+                        <input type="text" value="{{ f.value }}" readOnly="{{ true }}" style="width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-family: {{ f.font }}; font-size: 0.9375rem; letter-spacing: {{ f.tracking }}" />
+                        <span style="display: block; font-size: 0.8125rem; color: var(--slate); margin-top: 4px">{{ f.help }}</span>
+                      </label>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="width: 400px; flex: 0 0 400px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); padding: 24px">
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Notifications</div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--rule)">
+                    <div style="min-width: 0">
+                      <div style="font-size: 0.9375rem; line-height: 1.4">Daily digest</div>
+                      <div style="font-size: 0.8125rem; color: var(--slate)">One email with the day's run of show.</div>
+                    </div>
+                    <button type="button" onClick="{{ toggleDigest }}" role="switch" aria-checked="{{ digest }}" style="width: 44px; height: 24px; flex: 0 0 44px; border: 1px solid {{ digestBorder }}; border-radius: 2px; background: {{ digestBg }}; position: relative; cursor: pointer; padding: 0; transition: background 80ms linear, border-color 80ms linear">
+                      <span style="position: absolute; top: 2px; left: {{ digestKnob }}px; width: 18px; height: 18px; border-radius: 2px; background: var(--surface); border: 1px solid var(--rule); transition: left 80ms linear"></span>
+                    </button>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--rule)">
+                    <div style="font-size: 0.9375rem">Digest time</div>
+                    <input type="time" value="08:00" readOnly="{{ true }}" style="height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em" />
+                  </div>
+                  <div style="padding: 16px 0; border-bottom: 1px solid var(--rule)">
+                    <div style="font-size: 0.9375rem">Reminder lead time</div>
+                    <div style="display: flex; gap: 8px; margin-top: 8px">
+                      <sc-for list="{{ leadTimes }}" as="l" hint-placeholder-count="3">
+                        <button type="button" onClick="{{ l.pick }}" style="height: 32px; padding: 0 12px; border: 1px solid {{ l.border }}; border-radius: 2px; background: {{ l.bg }}; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: {{ l.fg }}; cursor: pointer; transition: background 80ms linear, border-color 80ms linear">{{ l.label }}</button>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px solid var(--signal); border-radius: 2px; padding: 12px">
+                    <div style="font-size: 0.9375rem; line-height: 1.5">Browser notifications are off. Turn them on and this tab will tell you 15 minutes before a meeting, even when it's in the background.</div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px">
+                      <button type="button" onClick="{{ enablePush }}" style="height: 32px; padding: 0 12px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Turn on</button>
+                      <button type="button" style="height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer">Not now</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+
+          <sc-if value="{{ detailOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position: relative; z-index: 30; width: 480px; flex: 0 0 480px; border-left: 1px solid var(--rule); background: var(--surface); box-shadow: var(--shadow); overflow: auto; animation: panelIn 200ms ease-out">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 16px 0 24px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--surface)">
+                <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Meeting</div>
+                <button type="button" onClick="{{ closePanel }}" aria-label="Close panel" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; font-size: 0.8125rem; transition: background 80ms linear" style-hover="background: var(--rule)">×</button>
+              </div>
+              <div style="padding: 24px">
+                <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ detail.client }}</div>
+                <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px">{{ detail.title }}</div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px">
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums">{{ detail.range }}</div>
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ tz }}</div>
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: {{ detail.stateColor }}">{{ detail.state }}</div>
+                </div>
+
+                <sc-if value="{{ linkError }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px solid var(--live); border-radius: 2px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+                    <div style="font-size: 0.8125rem; line-height: 1.4">Zoom link couldn't be created. The meeting is saved.</div>
+                    <button type="button" onClick="{{ retry }}" style="height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Retry</button>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ detail.hasLink }}" hint-placeholder-val="{{ true }}">
+                  <button type="button" style="width: 100%; height: 48px; margin-top: 16px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Join {{ detail.platform }}</button>
+                  <div style="margin-top: 8px; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); word-break: break-all">{{ detail.url }}</div>
+                </sc-if>
+                <sc-if value="{{ detail.noLink }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 16px; border: 1px solid var(--rule); border-left: 2px dashed var(--slate); border-radius: 2px; padding: 16px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">No link. Call the client.</div>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; margin-top: 8px">{{ detail.phone }}</div>
+                  </div>
+                </sc-if>
+
+                <div style="margin-top: 32px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding-bottom: 8px; border-bottom: 1px solid var(--rule)">Attendees</div>
+                <sc-for list="{{ detail.attendees }}" as="a" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule)">
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--paper); border: 1px solid var(--rule); color: var(--slate); display: flex; align-items: center; justify-content: center; font-size: 0.625rem; font-weight: 600">{{ a.initials }}</div>
+                    <div style="flex: 1; min-width: 0">
+                      <div style="font-size: 0.9375rem; line-height: 1.5">{{ a.name }}</div>
+                      <div style="font-size: 0.8125rem; color: var(--slate)">{{ a.title }}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px">
+                      <div style="width: 6px; height: 6px; border-radius: 50%; background: {{ a.dot }}; border: 1px solid {{ a.dotBorder }}"></div>
+                      <div style="font-size: 0.8125rem; color: var(--slate)">{{ a.status }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+
+                <div style="margin-top: 24px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding-bottom: 8px; border-bottom: 1px solid var(--rule)">Notes</div>
+                <div style="font-size: 0.9375rem; line-height: 1.5; margin-top: 12px; text-wrap: pretty">{{ detail.notes }}</div>
+
+                <div style="margin-top: 24px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding-bottom: 8px; border-bottom: 1px solid var(--rule)">History</div>
+                <sc-for list="{{ detail.audit }}" as="h" hint-placeholder-count="3">
+                  <div style="display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule)">
+                    <div style="width: 96px; flex: 0 0 96px; font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate); font-variant-numeric: tabular-nums">{{ h.when }}</div>
+                    <div style="font-size: 0.8125rem; line-height: 1.4">{{ h.what }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ assistantOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position: relative; z-index: 30; width: 480px; flex: 0 0 480px; border-left: 1px solid var(--rule); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; animation: panelIn 200ms ease-out">
+              <div style="display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 16px 0 24px; border-bottom: 1px solid var(--rule)">
+                <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Assistant</div>
+                <button type="button" onClick="{{ closePanel }}" aria-label="Close assistant" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; font-size: 0.8125rem; transition: background 80ms linear" style-hover="background: var(--rule)">×</button>
+              </div>
+              <div style="flex: 1; overflow: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+
+                <sc-if value="{{ aIdle }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size: 0.9375rem; line-height: 1.5; color: var(--slate)">Ask for a change to the schedule. Nothing happens until you confirm it.</div>
+                  <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); margin-top: 8px">Try</div>
+                  <div style="display: flex; flex-direction: column; gap: 8px">
+                    <sc-for list="{{ aSuggestions }}" as="s" hint-placeholder-count="3">
+                      <button type="button" onClick="{{ s.run }}" style="text-align: left; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem; line-height: 1.4; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">{{ s.label }}</button>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ aBusy }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">You</div>
+                    <div style="max-width: 320px; border: 1px solid var(--rule); border-radius: 2px; padding: 10px 12px; font-size: 0.9375rem; line-height: 1.5">{{ aPrompt }}</div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Assistant</div>
+                    <div style="height: 12px; width: 70%; background: var(--rule); border-radius: 2px; animation: shimmer 800ms ease-in-out infinite alternate"></div>
+                    <div style="height: 12px; width: 45%; background: var(--rule); border-radius: 2px; animation: shimmer 800ms ease-in-out 120ms infinite alternate"></div>
+                    <div style="height: 88px; width: 100%; background: var(--rule); border-radius: 2px; animation: shimmer 800ms ease-in-out 240ms infinite alternate"></div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ aReady }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">You</div>
+                    <div style="max-width: 320px; border: 1px solid var(--rule); border-radius: 2px; padding: 10px 12px; font-size: 0.9375rem; line-height: 1.5">{{ aPrompt }}</div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 4px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Assistant</div>
+                    <div style="font-size: 0.9375rem; line-height: 1.5">{{ aAnswer }}</div>
+                  </div>
+                  <div style="border: 1px solid var(--signal); border-left: 2px solid var(--signal); border-radius: 2px; padding: 16px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--signal)">Will do</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px">
+                      <sc-for list="{{ aPlan }}" as="p" hint-placeholder-count="3">
+                        <div style="display: flex; gap: 12px">
+                          <div style="width: 96px; flex: 0 0 96px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate)">{{ p.verb }}</div>
+                          <div style="flex: 1; min-width: 0; font-size: 0.9375rem; line-height: 1.5">{{ p.what }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 16px">
+                      <button type="button" onClick="{{ confirmAssistant }}" style="height: 36px; padding: 0 16px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Confirm</button>
+                      <button type="button" onClick="{{ resetAssistant }}" style="height: 36px; padding: 0 16px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Cancel</button>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.8125rem; color: var(--slate); line-height: 1.4">Nothing is sent until you confirm.</div>
+                </sc-if>
+
+                <sc-if value="{{ aDone }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">You</div>
+                    <div style="max-width: 320px; border: 1px solid var(--rule); border-radius: 2px; padding: 10px 12px; font-size: 0.9375rem; line-height: 1.5">{{ aPrompt }}</div>
+                  </div>
+                  <div style="border: 1px solid var(--rule); border-left: 2px solid var(--signal); border-radius: 2px; padding: 16px">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Done</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px">
+                      <sc-for list="{{ aResult }}" as="p" hint-placeholder-count="3">
+                        <div style="display: flex; gap: 12px">
+                          <div style="width: 96px; flex: 0 0 96px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate)">{{ p.verb }}</div>
+                          <div style="flex: 1; min-width: 0; font-size: 0.9375rem; line-height: 1.5">{{ p.what }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <button type="button" onClick="{{ resetAssistant }}" style="height: 32px; margin-top: 16px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Ask for something else</button>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="border-top: 1px solid var(--rule); padding: 12px 24px">
+                <input type="text" placeholder="Ask for a change" onKeyDown="{{ assistantKey }}" style="width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem" />
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--rule); padding: 24px">
+      <div style="width: 390px; height: 780px; background: var(--paper); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; display: flex; flex-direction: column">
+        <div style="height: 48px; flex: 0 0 48px; background: var(--surface); border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; padding: 0 16px">
+          <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em">Today</div>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; font-weight: 500; letter-spacing: -0.04em; color: var(--live); font-variant-numeric: tabular-nums">{{ clock }}</div>
+            <button type="button" onClick="{{ openModal }}" aria-label="New meeting" style="width: 44px; height: 44px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 1.125rem; cursor: pointer">+</button>
+          </div>
+        </div>
+        <div style="flex: 1; overflow: auto">
+          <div style="height: 48px; background: var(--surface); border-bottom: 1px solid var(--rule); position: relative; padding: 0 16px">
+            <div style="position: absolute; inset: 0 16px">
+              <sc-for list="{{ railHours }}" as="h" hint-placeholder-count="9">
+                <div style="position: absolute; top: 8px; left: {{ h.top }}%; display: flex; flex-direction: column; align-items: center; gap: 2px">
+                  <div style="width: 1px; height: 8px; background: var(--rule)"></div>
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 9px; letter-spacing: -0.02em; color: var(--slate)">{{ h.label }}</div>
+                </div>
+              </sc-for>
+              <sc-for list="{{ railMarks }}" as="m" hint-placeholder-count="6">
+                <div style="position: absolute; bottom: 6px; left: {{ m.top }}%; width: 3px; height: 12px; background: {{ m.fill }}; border: 1px solid {{ m.stroke }}; opacity: {{ m.op }}"></div>
+              </sc-for>
+              <div style="position: absolute; top: 0; bottom: 0; left: {{ railNow }}%; width: 1px; background: var(--live)">
+                <div style="position: absolute; top: 0; left: -1.5px; width: 4px; height: 4px; border-radius: 50%; background: var(--live)"></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding: 16px">
+            <div style="border: 1px solid var(--rule); border-left: 2px solid {{ next.accent }}; border-radius: 2px; background: var(--surface); padding: 16px">
+              <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">{{ next.eyebrow }}</div>
+              <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px">{{ next.title }}</div>
+              <div style="font-family: 'Martian Mono', monospace; font-size: 1.25rem; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; color: {{ next.countdownColor }}; margin-top: 12px; font-variant-numeric: tabular-nums; transition: color 600ms linear">{{ next.countdown }}</div>
+              <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate); margin-top: 8px">{{ next.range }}</div>
+              <sc-if value="{{ next.hasLink }}" hint-placeholder-val="{{ true }}">
+                <button type="button" style="width: 100%; height: 48px; margin-top: 16px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer">Join {{ next.platform }}</button>
+              </sc-if>
+            </div>
+            <div style="margin-top: 24px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Run of day</div>
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+              <div>
+                <sc-if value="{{ r.nowBefore }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 0">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: var(--live)"></div>
+                    <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--live)">{{ clock }}</div>
+                    <div style="flex: 1; height: 1px; background: var(--live)"></div>
+                  </div>
+                </sc-if>
+                <div style="display: flex; gap: 12px; min-height: 56px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--rule); border-left: {{ r.bl }}; background: {{ r.bg }}; opacity: {{ r.op }}">
+                  <div style="width: 44px; flex: 0 0 44px; font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.04em; color: {{ r.timeColor }}; font-variant-numeric: tabular-nums">{{ r.start }}</div>
+                  <div style="min-width: 0; flex: 1">
+                    <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); height: 15px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ r.client }}</div>
+                    <div style="font-size: 0.9375rem; line-height: 1.4; text-decoration: {{ r.strike }}">{{ r.title }}</div>
+                  </div>
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ r.platformCode }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; background: var(--veil); display: flex; align-items: center; justify-content: center; z-index: 40; animation: veilIn 160ms ease-out">
+      <div style="width: 560px; max-width: calc(100vw - 32px); max-height: 88vh; overflow: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow); animation: modalIn 160ms ease-out">
+        <div style="display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 16px 0 24px; border-bottom: 1px solid var(--rule)">
+          <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em">New meeting</div>
+          <button type="button" onClick="{{ closeModal }}" aria-label="Close" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; transition: background 80ms linear" style-hover="background: var(--rule)">×</button>
+        </div>
+        <div style="padding: 24px">
+          <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate)">Meeting type</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px">
+            <sc-for list="{{ types }}" as="t" hint-placeholder-count="4">
+              <button type="button" onClick="{{ t.pick }}" style="text-align: left; padding: 12px; border: 1px solid {{ t.border }}; border-left: {{ t.bl }}; border-radius: 2px; background: {{ t.bg }}; cursor: pointer; font-family: 'Instrument Sans', sans-serif; transition: background 80ms linear, border-color 80ms linear">
+                <div style="font-size: 0.9375rem; font-weight: 500">{{ t.label }}</div>
+                <div style="font-size: 0.8125rem; color: var(--slate); margin-top: 2px">{{ t.hint }}</div>
+              </button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ typeChosen }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 24px">
+              <sc-for list="{{ formFields }}" as="f" hint-placeholder-count="4">
+                <div style="animation: riseIn 120ms ease-out both; animation-delay: {{ f.delay }}ms">
+                  <div style="font-size: 0.8125rem; font-weight: 500; color: var(--slate); margin-bottom: 4px">{{ f.label }}</div>
+                  <input type="text" value="{{ f.value }}" readOnly="{{ true }}" style="width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-family: {{ f.font }}; font-size: 0.9375rem; letter-spacing: {{ f.tracking }}" />
+                  <div style="font-size: 0.8125rem; color: var(--slate); margin-top: 4px">{{ f.help }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; gap: 16px">
+              <div style="font-size: 0.8125rem; font-weight: 500">{{ promise }}</div>
+              <div style="display: flex; gap: 8px; flex: 0 0 auto">
+                <button type="button" onClick="{{ closeModal }}" style="height: 44px; padding: 0 16px; border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); font-size: 0.9375rem; font-weight: 500; cursor: pointer; transition: border-color 80ms linear" style-hover="border-color: var(--signal)">Cancel</button>
+                <button type="button" onClick="{{ createMeeting }}" style="height: 44px; padding: 0 16px; border: none; border-radius: 2px; background: var(--signal); color: #FFFFFF; font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background 80ms linear" style-hover="background: var(--ink)">Create meeting</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; background: var(--veil); display: flex; align-items: flex-start; justify-content: center; padding-top: 96px; z-index: 40; animation: veilIn 160ms ease-out">
+      <div style="width: 560px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow); overflow: hidden; animation: modalIn 160ms ease-out">
+        <input type="text" value="{{ query }}" onChange="{{ setQuery }}" onKeyDown="{{ paletteKey }}" ref="{{ paletteRef }}" placeholder="Jump to a meeting, person, client or channel" style="width: 100%; height: 48px; padding: 0 16px; border: none; border-bottom: 1px solid var(--rule); background: var(--surface); font-size: 0.9375rem" />
+        <div style="max-height: 360px; overflow: auto; padding: 8px 0">
+          <sc-for list="{{ paletteGroups }}" as="g" hint-placeholder-count="3">
+            <div>
+              <div style="font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--slate); padding: 8px 16px 4px">{{ g.label }}</div>
+              <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="3">
+                <button type="button" onClick="{{ i.go }}" onMouseEnter="{{ i.hover }}" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 16px; border: none; background: {{ i.bg }}; text-align: left; cursor: pointer; font-family: 'Instrument Sans', sans-serif">
+                  <div style="flex: 1; min-width: 0; font-size: 0.9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ i.label }}</div>
+                  <div style="font-family: 'Martian Mono', monospace; font-size: 0.6875rem; letter-spacing: -0.02em; color: var(--slate)">{{ i.meta }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </sc-for>
+          <sc-if value="{{ paletteEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 24px 16px; font-size: 0.9375rem; color: var(--slate)">Nothing matches {{ query }}.</div>
+          </sc-if>
+        </div>
+        <div style="display: flex; gap: 16px; padding: 8px 16px; border-top: 1px solid var(--rule); font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; color: var(--slate)">
+          <span>↑↓ move</span><span>⏎ open</span><span>esc close</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ shortcutsOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; background: var(--veil); display: flex; align-items: center; justify-content: center; z-index: 40; animation: veilIn 160ms ease-out">
+      <div style="width: 420px; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow); padding: 24px; animation: modalIn 160ms ease-out">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.02em">Shortcuts</div>
+          <button type="button" onClick="{{ closeOverlays }}" aria-label="Close" style="width: 28px; height: 28px; border: none; border-radius: 2px; background: transparent; color: var(--slate); cursor: pointer; transition: background 80ms linear" style-hover="background: var(--rule)">×</button>
+        </div>
+        <div style="margin-top: 16px">
+          <sc-for list="{{ shortcuts }}" as="s" hint-placeholder-count="6">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--rule)">
+              <div style="font-size: 0.9375rem">{{ s.what }}</div>
+              <div style="font-family: 'Martian Mono', monospace; font-size: 0.8125rem; letter-spacing: -0.02em; color: var(--slate)">{{ s.key }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; right: 24px; bottom: 64px; z-index: 50; min-width: 240px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow); overflow: hidden; animation: toastIn 160ms ease-out">
+      <div style="padding: 12px 16px; font-size: 0.8125rem; font-weight: 500">{{ toast }}</div>
+      <div style="height: 1px; background: var(--signal); transform-origin: left; animation: runOut 4000ms linear forwards"></div>
+    </div>
+  </sc-if>
+
+  <div style="position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; align-items: center; gap: 4px; background: var(--invert); border-radius: 2px; padding: 4px">
+    <sc-for list="{{ harness }}" as="h" hint-placeholder-count="8">
+      <button type="button" onClick="{{ h.go }}" style="height: 24px; padding: 0 8px; border: none; border-radius: 2px; background: {{ h.bg }}; color: {{ h.fg }}; font-family: 'Martian Mono', monospace; font-size: 0.5625rem; letter-spacing: -0.02em; cursor: pointer">{{ h.label }}</button>
+    </sc-for>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;viewerRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;owner&quot;,&quot;manager&quot;,&quot;member&quot;],&quot;default&quot;:&quot;owner&quot;,&quot;tsType&quot;:&quot;'owner' | 'manager' | 'member'&quot;,&quot;section&quot;:&quot;Permissions&quot;}}">
+const PLAT = { meet: "MEET", zoom: "ZOOM", wa: "WA", tel: "TEL" };
+const MONO = "'Martian Mono', monospace", SANS = "'Instrument Sans', sans-serif";
+const V = n => "var(--" + n + ")";
+
+class Component extends DCLogic {
+  state = {
+    screen: "home", now: Date.now(), sel: null, panel: null, modal: false, mtype: null,
+    view: "desktop", empty: false, err: false, toast: null, perms: {}, roles: {}, preset: "Account manager",
+    theme: null, meRole: null, avatarMenu: false, palette: false, query: "", pIndex: 0, shortcuts: false,
+    weekOffset: 0, filters: [], search: "", chat: "#creative", composerFocus: false, composerTouched: false,
+    aState: "idle", aPrompt: "", digest: true, lead: 15, hoverRow: null, pending: null, client: "Nuvel Cosmetics",
+  };
+
+  componentDidMount() {
+    this._i = setInterval(() => this.setState({ now: Date.now() }), 1000);
+    this._k = e => this.onKey(e);
+    document.addEventListener("keydown", this._k);
+    this.syncTheme();
+  }
+  componentDidUpdate() { this.syncTheme(); }
+  componentWillUnmount() { clearInterval(this._i); clearTimeout(this._t); clearTimeout(this._a); clearTimeout(this._p); document.removeEventListener("keydown", this._k); }
+
+  syncTheme() {
+    const t = this.theme();
+    if (document.documentElement.getAttribute("data-theme") !== t) document.documentElement.setAttribute("data-theme", t);
+  }
+  theme() { return this.state.theme || this.props.theme || "light"; }
+  role() { return this.state.meRole || this.props.viewerRole || "owner"; }
+  canManage() { return this.role() === "owner" || this.role() === "manager"; }
+
+  onKey(e) {
+    const tag = (e.target && e.target.tagName) || "";
+    const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); this.setState({ palette: true, query: "", pIndex: 0 }); return; }
+    if (e.key === "Escape") { this.setState({ palette: false, shortcuts: false, modal: false, panel: null, avatarMenu: false }); return; }
+    if (typing) return;
+    const k = e.key.toLowerCase();
+    if (k === "n") { e.preventDefault(); this.setState({ modal: true, mtype: null }); }
+    else if (k === "t") this.setState({ screen: "today" });
+    else if (k === "?") this.setState({ shortcuts: true });
+    else if (k === "/") { e.preventDefault(); this.setState({ palette: true, query: "", pIndex: 0 }); }
+    else if (e.key === "ArrowLeft" && this.state.screen === "calendar") this.setState(s => ({ weekOffset: s.weekOffset - 1 }));
+    else if (e.key === "ArrowRight" && this.state.screen === "calendar") this.setState(s => ({ weekOffset: s.weekOffset + 1 }));
+  }
+
+  pad(n) { return String(n).padStart(2, "0"); }
+  hm(d) { return this.pad(d.getHours()) + ":" + this.pad(d.getMinutes()); }
+
+  roster() {
+    return [
+      { name: "Rana Haddad", title: "Founder", initials: "RH", role: "Owner", base: [1, 1, 1, 1, 1], online: true },
+      { name: "Omar Khalil", title: "Account Manager", initials: "OK", role: "Manager", base: [1, 1, 1, 1, 0], online: true },
+      { name: "Sara Deeb", title: "Media Buyer", initials: "SD", role: "Member", base: [1, 0, 1, 0, 0], online: true },
+      { name: "Emma Fischer", title: "Designer", initials: "EF", role: "Member", base: [1, 0, 0, 0, 0], online: false },
+      { name: "Mo Farouk", title: "Media Buyer", initials: "MF", role: "Member", base: [1, 0, 1, 0, 0], online: false },
+      { name: "Lina Tarek", title: "Account Manager", initials: "LT", role: "Manager", base: [1, 1, 1, 1, 0], online: true },
+    ];
+  }
+
+  meetings() {
+    if (this._m) return this._m;
+    const base = new Date();
+    const mk = (off, dur, title, client, platform, att, cancelled) => {
+      const s = new Date(base.getTime() + off * 60000);
+      s.setMinutes(Math.round(s.getMinutes() / 5) * 5, 0, 0);
+      return { id: title, start: s, end: new Date(s.getTime() + dur * 60000), dur, title, client, platform, att, cancelled: !!cancelled };
+    };
+    this._m = [
+      mk(-305, 20, "Team standup", null, "wa", ["RH", "OK", "SD", "MF"]),
+      mk(-215, 45, "Q3 creative review", "Nuvel Cosmetics", "meet", ["RH", "SD", "LT"]),
+      mk(-140, 30, "Media plan walkthrough", "Kite Airlines", "zoom", ["RH", "MF"], true),
+      mk(-70, 30, "Budget pacing check", null, "meet", ["OK", "MF"]),
+      mk(-20, 30, "Campaign kickoff", "Fern & Field", "zoom", ["RH", "SD", "LT", "OK"]),
+      mk(12, 30, "Creative handover", "Orbit Fitness", "meet", ["RH", "SD", "MF", "LT"]),
+      mk(80, 60, "Monthly retainer review", "Al Barsha Motors", "tel", ["RH", "OK"]),
+      mk(165, 30, "Paid social sync", null, "meet", ["OK", "MF", "SD"]),
+      mk(255, 45, "New business pitch prep", null, "wa", ["RH", "LT"]),
+    ];
+    return this._m;
+  }
+
+  allMeetings() {
+    const ms = this.meetings().slice();
+    if (this.state.pending) ms.push(this.state.pending);
+    return ms.sort((a, b) => a.start - b.start);
+  }
+
+  stateOf(m, now) {
+    if (m.cancelled) return "cancelled";
+    if (now >= m.start.getTime() && now < m.end.getTime()) return "live";
+    if (now >= m.end.getTime()) return "past";
+    if (m.start.getTime() - now <= 30 * 60000) return "soon";
+    return "future";
+  }
+  hasLink(m) { return m.platform === "meet" || m.platform === "zoom"; }
+  platformName(m) { return m.platform === "meet" ? "Google Meet" : m.platform === "zoom" ? "Zoom" : m.platform === "wa" ? "WhatsApp" : "Phone"; }
+
+  blockStyle(m, st) {
+    const pending = m.pending ? 0.6 : 1;
+    if (st === "cancelled") return { bg: V("surface"), bgHover: V("hover"), bl: "1px solid " + V("rule"), border: V("rule"), op: 0.4 };
+    if (st === "live") return { bg: V("fill-live"), bgHover: V("fill-live"), bl: "2px solid " + V("live"), border: V("live"), op: pending };
+    if (this.hasLink(m)) return { bg: V("fill-signal"), bgHover: V("fill-signal-hi"), bl: "2px solid " + V("signal"), border: V("rule"), op: st === "past" ? 0.45 : pending };
+    return { bg: V("surface"), bgHover: V("hover"), bl: "2px dashed " + V("slate"), border: V("rule"), op: st === "past" ? 0.45 : pending };
+  }
+
+  countdown(msLeft) {
+    const mins = Math.round(msLeft / 60000);
+    if (mins < 1) return "Starts now";
+    if (mins < 60) return "Starts in " + mins + (mins === 1 ? " minute" : " minutes");
+    return "Starts in " + Math.floor(mins / 60) + "h " + this.pad(mins % 60);
+  }
+
+  fire(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 4000); }
+
+  clientData() {
+    return [
+      { name: "Nuvel Cosmetics", contact: "Dina Aziz", email: "dina@nuvel.ae", phone: "+971 4 388 2210", region: "Domestic", n: 6 },
+      { name: "Kite Airlines", contact: "Peter Lund", email: "p.lund@kite.eu", phone: "+44 20 7946 0021", region: "International", n: 4 },
+      { name: "Fern & Field", contact: "Maya Rahal", email: "maya@fernfield.co", phone: "+971 4 552 8890", region: "Domestic", n: 3 },
+      { name: "Al Barsha Motors", contact: "Yusuf Nasser", email: "yusuf@abmotors.ae", phone: "+971 4 701 1180", region: "Domestic", n: 3 },
+      { name: "Orbit Fitness", contact: "Tara Voss", email: "tara@orbitfit.com", phone: "+1 415 555 0138", region: "International", n: 2 },
+    ];
+  }
+
+  renderVals() {
+    const s = this.state, now = s.now, nowD = new Date(now);
+    const ms = this.allMeetings();
+    const roster = this.roster();
+    const canManage = this.canManage();
+    const meRow = roster.find(r => r.role.toLowerCase() === this.role()) || roster[0];
+    const minsNow = nowD.getHours() * 60 + nowD.getMinutes() + nowD.getSeconds() / 60;
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const railHours = [];
+    for (let h = 0; h <= 24; h += 3) railHours.push({ top: (h / 24) * 100, label: h === 24 ? "24" : this.pad(h) });
+    const railMarks = ms.map(m => {
+      const st = this.stateOf(m, now), mm = m.start.getHours() * 60 + m.start.getMinutes();
+      return { top: (mm / 1440) * 100, fill: st === "live" ? V("live") : this.hasLink(m) ? V("signal") : "transparent",
+        stroke: st === "live" ? V("live") : V("signal"), op: st === "past" || m.cancelled ? 0.4 : 1, label: m.title };
+    });
+
+    const live = ms.find(m => this.stateOf(m, now) === "live");
+    const nextM = live || ms.filter(m => !m.cancelled && m.end.getTime() > now)[0] || ms[ms.length - 1];
+    const nextSt = this.stateOf(nextM, now);
+    const urgent = nextSt === "soon" || nextSt === "live";
+    const next = {
+      eyebrow: (nextSt === "live" ? "In progress" : "Next") + (nextM.client ? " · " + nextM.client : ""),
+      title: nextM.title, platform: this.platformName(nextM), platformCode: PLAT[nextM.platform],
+      countdown: nextSt === "live" ? "Live · ends " + this.hm(nextM.end) : this.countdown(nextM.start.getTime() - now),
+      countdownColor: urgent ? V("live") : V("slate"),
+      accent: nextSt === "live" ? V("live") : this.hasLink(nextM) ? V("signal") : V("slate"),
+      range: this.hm(nextM.start) + "–" + this.hm(nextM.end), people: nextM.att,
+      attendeeLine: nextM.att.length + " people" + (nextM.client ? " · " + nextM.client : " · Internal"),
+      hasLink: this.hasLink(nextM), noLink: !this.hasLink(nextM), phone: "+971 4 388 2210",
+      open: () => this.fire("Opening " + this.platformName(nextM)),
+      details: () => this.setState({ sel: nextM.id, panel: "detail" }),
+    };
+
+    let placedNow = false;
+    const rows = ms.map(m => {
+      const st = this.stateOf(m, now), bs = this.blockStyle(m, st);
+      const nowBefore = !placedNow && m.start.getTime() > now;
+      if (nowBefore) placedNow = true;
+      const hovered = s.hoverRow === m.id;
+      return {
+        id: m.id, nowBefore, start: this.hm(m.start), range: this.hm(m.start) + "–" + this.hm(m.end), dur: m.dur + "m",
+        client: m.client || "", title: m.title, people: m.att, platformCode: PLAT[m.platform],
+        strike: m.cancelled ? "line-through" : "none",
+        bg: st === "live" ? bs.bg : hovered ? V("hover") : "transparent", bl: bs.bl, op: bs.op,
+        timeColor: st === "live" || st === "soon" ? V("live") : hovered ? V("ink") : V("slate"),
+        action: m.pending ? "Creating" : m.cancelled ? "Cancelled" : st === "past" ? "" : this.hasLink(m) ? "Join" : st === "live" ? "" : "No link",
+        actionColor: m.cancelled || m.pending ? V("slate") : this.hasLink(m) ? V("signal") : V("slate"),
+        enter: () => this.setState({ hoverRow: m.id }), leave: () => this.setState({ hoverRow: null }),
+        open: () => this.setState({ sel: m.id, panel: "detail" }),
+      };
+    });
+
+    const H0 = 7, H1 = 20, ROW = 56;
+    const hours = [];
+    for (let h = H0; h <= H1; h++) hours.push(this.pad(h) + ":00");
+    const monday = new Date(nowD); monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + s.weekOffset * 7);
+    const todayIdx = s.weekOffset === 0 ? (nowD.getDay() + 6) % 7 : -1;
+    const synth = [
+      [0, 9, 30, 60, "Retainer planning", "Nuvel Cosmetics", "zoom"], [0, 14, 0, 30, "Creative standup", null, "meet"],
+      [1, 8, 30, 45, "Client check-in", "Kite Airlines", "wa"], [1, 11, 0, 90, "Shoot prep", "Fern & Field", "meet"], [1, 16, 0, 30, "Pacing review", null, "meet"],
+      [2, 10, 0, 60, "Quarterly business review", "Al Barsha Motors", "zoom"], [2, 15, 30, 30, "Design crit", null, "meet"],
+      [3, 9, 0, 30, "Standup", null, "wa"], [3, 12, 0, 60, "Budget approval", "Orbit Fitness", "tel"], [3, 17, 0, 45, "Pitch rehearsal", null, "meet"],
+      [4, 10, 30, 45, "Weekly report walkthrough", "Nuvel Cosmetics", "meet"], [4, 15, 0, 60, "New business intro", "Kite Airlines", "zoom"],
+      [6, 18, 0, 30, "Launch monitoring", "Fern & Field", "wa"],
+    ];
+    const q = s.search.trim().toLowerCase();
+    const passes = m => {
+      if (q && !(m.title + " " + (m.client || "")).toLowerCase().includes(q)) return false;
+      for (const f of s.filters) {
+        if (f.kind === "type" && f.value === "Client" && !m.client) return false;
+        if (f.kind === "type" && f.value === "Team" && m.client) return false;
+        if (f.kind === "platform" && PLAT[m.platform] !== f.value) return false;
+        if (f.kind === "client" && m.client !== f.value) return false;
+        if (f.kind === "attendee" && !(m.att || []).includes(f.value)) return false;
+      }
+      return true;
+    };
+    let weekCount = 0;
+    const week = dayNames.map((label, i) => {
+      const d = new Date(monday); d.setDate(monday.getDate() + i);
+      const isToday = i === todayIdx;
+      let evs;
+      if (isToday) evs = ms.map(m => ({ m, st: this.stateOf(m, now), sh: m.start.getHours() + m.start.getMinutes() / 60, dur: m.dur }));
+      else evs = synth.filter(e => e[0] === i).map(e => {
+        const st0 = new Date(d); st0.setHours(e[1], e[2], 0, 0);
+        const m = { id: e[4] + i + s.weekOffset, start: st0, end: new Date(st0.getTime() + e[3] * 60000), dur: e[3], title: e[4], client: e[5], platform: e[6], att: ["RH", "SD"], cancelled: false };
+        return { m, st: st0.getTime() < now ? "past" : "future", sh: e[1] + e[2] / 60, dur: e[3] };
+      });
+      evs = evs.filter(x => passes(x.m));
+      weekCount += evs.length;
+      const events = evs.map((x, idx) => {
+        const { m, st, sh, dur } = x, bs = this.blockStyle(m, st);
+        const overlap = evs.filter(o => o.sh < sh + dur / 60 && sh < o.sh + o.dur / 60);
+        const pos = Math.max(0, overlap.indexOf(x)), w = 100 / overlap.length;
+        return {
+          top: Math.round((sh - H0) * ROW), h: Math.max(28, Math.round((dur / 60) * ROW) - 2),
+          left: pos * w, width: w - 1, bg: bs.bg, bgHover: bs.bgHover, bl: bs.bl, border: bs.border, op: bs.op,
+          time: this.hm(m.start), timeColor: st === "live" ? V("live") : V("ink"),
+          client: m.client || "", title: m.title, platformCode: PLAT[m.platform],
+          strike: m.cancelled ? "line-through" : "none",
+          open: () => this.setState({ sel: m.id, panel: "detail" }),
+        };
+      });
+      return { label, date: this.pad(d.getDate()) + "." + this.pad(d.getMonth() + 1), isToday,
+        labelColor: isToday ? V("ink") : V("slate"), dateColor: isToday ? V("live") : V("slate"),
+        bg: isToday ? V("paper") : V("surface"), events };
+    });
+
+    const filterMenus = [
+      { label: "Type", apply: () => this.addFilter("type", "Client") },
+      { label: "Platform", apply: () => this.addFilter("platform", "ZOOM") },
+      { label: "Attendee", apply: () => this.addFilter("attendee", "RH") },
+      { label: "Client", apply: () => this.addFilter("client", "Nuvel Cosmetics") },
+    ];
+    const activeChips = s.filters.map((f, i) => ({ label: f.kind + ": " + f.value, remove: () => this.setState(st => ({ filters: st.filters.filter((_, j) => j !== i) })) }));
+
+    const permCols = ["Create", "Edit others'", "Clients", "Invite", "Billing"];
+    const ownerCount = roster.filter(p => (s.roles[p.name] || p.role) === "Owner").length;
+    const people = roster.map((p, ri) => {
+      const role = s.roles[p.name] || p.role;
+      const isLastOwner = role === "Owner" && ownerCount < 2;
+      const canSetOwner = this.role() === "owner";
+      const options = canSetOwner ? ["Owner", "Manager", "Member"] : ["Manager", "Member"];
+      const locked = isLastOwner || (!canSetOwner && role === "Owner");
+      return {
+        name: p.name, title: p.title, initials: p.initials, role,
+        roleOptions: (options.includes(role) ? options : [role].concat(options)).map(o => ({ value: o, label: o })),
+        roleLocked: locked, roleColor: locked ? V("slate") : V("ink"), roleCursor: locked ? "not-allowed" : "pointer",
+        selectRef: el => { if (el && el.value !== role) el.value = role; },
+        setRole: e => { const v = e.target.value; this.setState(st => ({ roles: Object.assign({}, st.roles, { [p.name]: v }) })); this.fire(p.name.split(" ")[0] + " is now a " + v.toLowerCase()); },
+        cells: permCols.map((c, ci) => {
+          const key = ri + ":" + ci;
+          const on = key in s.perms ? s.perms[key] : !!p.base[ci];
+          const cellLocked = role === "Owner";
+          return { on, mark: on ? "✓" : "", bg: on ? V("signal") : V("surface"), border: on ? V("signal") : V("rule"),
+            locked: cellLocked, cursor: cellLocked ? "not-allowed" : "pointer", op: cellLocked ? 0.5 : 1,
+            aria: p.name + " — " + c,
+            toggle: () => this.setState(st => ({ perms: Object.assign({}, st.perms, { [key]: !on }) })) };
+        }),
+      };
+    });
+
+    const typeDefs = [
+      { key: "client-zoom", label: "Client call", hint: "Zoom link, emailed", link: true, platform: "zoom" },
+      { key: "internal", label: "Internal sync", hint: "Google Meet link", link: true, platform: "meet" },
+      { key: "whatsapp", label: "WhatsApp call", hint: "No link, reminders only", link: false, platform: "wa" },
+      { key: "onsite", label: "On site", hint: "No link, address instead", link: false, platform: "tel" },
+    ];
+    const chosen = typeDefs.find(t => t.key === s.mtype);
+    const types = typeDefs.map(t => ({
+      label: t.label, hint: t.hint,
+      bg: s.mtype === t.key ? V("fill-signal") : V("surface"),
+      border: s.mtype === t.key ? V("signal") : V("rule"),
+      bl: s.mtype === t.key ? "2px solid " + V("signal") : "1px solid " + V("rule"),
+      pick: () => this.setState({ mtype: t.key }),
+    }));
+    const formFields = chosen ? [
+      { label: "Title", value: chosen.link ? "Q4 planning" : "Weekly client call", help: "", font: SANS, tracking: "0", delay: 0 },
+      { label: "Client", value: s.client, help: "", font: SANS, tracking: "0", delay: 40 },
+      { label: "Starts", value: this.pad(nowD.getDate()) + "." + this.pad(nowD.getMonth() + 1) + "  14:30", help: "Shown in each attendee's own timezone", font: MONO, tracking: "-0.02em", delay: 80 },
+      { label: "Duration", value: "45 minutes", help: "", font: MONO, tracking: "-0.02em", delay: 120 },
+      { label: "Attendees", value: "Rana, Omar, Sara, Lina", help: "", font: SANS, tracking: "0", delay: 160 },
+    ] : [];
+
+    const selM = ms.find(m => m.id === s.sel) || ms[0];
+    const selSt = this.stateOf(selM, now);
+    const detail = {
+      client: selM.client || "Internal", title: selM.title,
+      range: this.hm(selM.start) + "–" + this.hm(selM.end),
+      state: selSt === "live" ? "IN PROGRESS" : selSt === "past" ? "ENDED" : selSt === "cancelled" ? "CANCELLED" : "SCHEDULED",
+      stateColor: selSt === "live" ? V("live") : V("slate"),
+      hasLink: this.hasLink(selM), noLink: !this.hasLink(selM),
+      platform: this.platformName(selM), phone: "+971 4 388 2210",
+      url: selM.platform === "zoom" ? "zoom.us/j/8841 2207 553" : "meet.google.com/xkq-djmb-ptz",
+      attendees: (selM.att || []).map((ini, n) => {
+        const r = roster.find(x => x.initials === ini) || { name: "Guest", title: "Client contact" };
+        return { initials: ini, name: r.name, title: r.title,
+          status: n === 0 ? "Organiser" : n % 3 === 2 ? "No reply" : "Accepted",
+          dot: n % 3 === 2 ? "transparent" : V("signal"), dotBorder: n % 3 === 2 ? V("slate") : V("signal") };
+      }),
+      notes: selM.client ? "Bring the pacing sheet and last month's creative results. They want a view on Q4 budget before the retainer renews." : "Standing internal slot. Skip if there's nothing to raise.",
+      audit: [
+        { when: this.hm(new Date(now - 5400000)), what: "Rana moved this 30 minutes later" },
+        { when: this.hm(new Date(now - 14400000)), what: "Omar added Lina Tarek" },
+        { when: "Mon 09:12", what: "Rana created the meeting" },
+      ],
+    };
+
+    const channelDefs = [
+      { name: "#general", unread: 0 }, { name: "#creative", unread: 3 },
+      { name: "#media-buying", unread: 0 }, { name: "#clients-nuvel", unread: 1 },
+    ];
+    const dmDefs = roster.filter(r => r.name !== meRow.name).slice(0, 4).map((r, i) => ({ name: r.name, initials: r.initials, unread: i === 0 ? 2 : 0, online: r.online }));
+    const chan = c => ({
+      name: c.name, initials: c.initials, unread: c.unread ? String(c.unread) : "",
+      unreadColor: c.unread ? V("signal") : V("slate"),
+      bg: s.chat === c.name ? V("hover") : "transparent", fg: s.chat === c.name ? V("ink") : V("slate"),
+      weight: s.chat === c.name ? 600 : 400, presence: c.online ? V("signal") : V("rule"),
+      open: () => this.setState({ chat: c.name }),
+    });
+    const threads = {
+      "#creative": [
+        { who: "Sara Deeb", t: -46, lines: ["Nuvel's second cut is in the shared drive.", "Colour grade is closer to the boards this time."] },
+        { who: "Sara Deeb", t: -44, lines: ["Feedback by 16:00 and we can ship tonight."] },
+        { who: "Omar Khalil", t: -28, lines: ["Looks good. One note on the end card copy."] },
+        { who: "Rana Haddad", t: -12, lines: ["Pulling the handover forward so we can review together."], card: true },
+      ],
+      "#general": [{ who: "Omar Khalil", t: -180, lines: ["Office wifi is back."] }],
+      "#media-buying": [{ who: "Mo Farouk", t: -95, lines: ["Kite pacing is 8% under. Shifting spend to Meta today."] }],
+      "#clients-nuvel": [{ who: "Lina Tarek", t: -60, lines: ["Dina asked for the Q4 flight plan by Thursday."] }],
+      "Omar Khalil": [{ who: "Omar Khalil", t: -20, lines: ["Can you approve the Barsha budget?"] }],
+      "Sara Deeb": [], "Emma Fischer": [], "Lina Tarek": [],
+    };
+    const thread = threads[s.chat] || [];
+    const cardM = ms.find(m => m.title === "Creative handover") || ms[0];
+    const cardSt = this.stateOf(cardM, now), cardBs = this.blockStyle(cardM, cardSt);
+    const messageGroups = thread.map((msg, i) => {
+      const prev = thread[i - 1];
+      const same = prev && prev.who === msg.who && Math.abs(msg.t - prev.t) <= 5;
+      const r = roster.find(x => x.name === msg.who) || {};
+      return {
+        showAvatar: !same, initials: r.initials || "", name: msg.who,
+        time: this.hm(new Date(now + msg.t * 60000)),
+        presence: r.online ? V("signal") : V("rule"), lines: msg.lines,
+        hasCard: !!msg.card,
+        card: { time: this.hm(cardM.start) + "–" + this.hm(cardM.end), client: cardM.client || "Internal", title: cardM.title,
+          platformCode: PLAT[cardM.platform], bg: cardBs.bg, bl: cardBs.bl, border: cardBs.border },
+        openCard: () => this.setState({ sel: cardM.id, panel: "detail" }),
+      };
+    });
+
+    const cds = this.clientData();
+    const cd = cds.find(c => c.name === s.client) || cds[0];
+    const clientRows = cds.map(c => ({
+      name: c.name, contact: c.contact, region: c.region, phone: c.phone, meetings: c.n + " mtgs",
+      bg: c.name === s.client ? V("hover") : "transparent",
+      open: () => this.setState({ client: c.name, screen: "clients" }),
+    }));
+    const client = {
+      name: cd.name, short: cd.name.split(" ")[0],
+      fields: [
+        { label: "Contact", value: cd.contact, font: SANS, tracking: "0" },
+        { label: "Email", value: cd.email, font: SANS, tracking: "0" },
+        { label: "Phone", value: cd.phone, font: MONO, tracking: "-0.02em" },
+        { label: "Region", value: cd.region, font: SANS, tracking: "0" },
+        { label: "Meetings", value: cd.n + " in the last 90 days", font: SANS, tracking: "0" },
+      ],
+      regionRule: cd.region === "International"
+        ? "International clients preselect Zoom — a link is always created."
+        : "Domestic clients preselect WhatsApp — no link, phone number shown instead.",
+      history: [
+        { when: "Thu 10:30", title: "Weekly report walkthrough", platformCode: cd.region === "International" ? "ZOOM" : "WA", bl: cd.region === "International" ? "2px solid " + V("signal") : "2px dashed " + V("slate") },
+        { when: "Tue 09:30", title: "Retainer planning", platformCode: "ZOOM", bl: "2px solid " + V("signal") },
+        { when: "Mon 15:00", title: "Creative feedback", platformCode: "MEET", bl: "2px solid " + V("signal") },
+        { when: "Fri 11:00", title: "Monthly invoice call", platformCode: "TEL", bl: "2px dashed " + V("slate") },
+      ],
+    };
+
+    const hour = nowD.getHours();
+    const partOfDay = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const remaining = ms.filter(m => !m.cancelled && m.start.getTime() > now);
+    const doneCount = ms.filter(m => !m.cancelled && m.end.getTime() <= now).length;
+    const remMins = remaining.reduce((a, m) => a + m.dur, 0);
+    const noLinkNext = remaining.find(m => !this.hasLink(m));
+    const home = {
+      dateline: dayNames[(nowD.getDay() + 6) % 7] + " " + this.pad(nowD.getDate()) + " " + monthNames[nowD.getMonth()] + " · " + this.hm(nowD),
+      greeting: partOfDay + ", " + meRow.name.split(" ")[0] + ".",
+      summary: remaining.length
+        ? "You have " + remaining.length + " meeting" + (remaining.length === 1 ? "" : "s") + " left today and " + doneCount + " already behind you. Nothing is double-booked."
+        : "Everything on today's list is done. Tomorrow has " + (s.err ? 4 : 5) + " meetings, starting at 09:00.",
+      stats: [
+        { value: String(remaining.length), label: "Left today", color: V("ink") },
+        { value: Math.round(remMins / 6) / 10 + "h", label: "Time booked", color: V("ink") },
+        { value: nextM ? this.hm(nextM.start) : "—", label: "Next start", color: urgent ? V("live") : V("ink") },
+      ],
+      needsCount: "3 items",
+      needs: [
+        { kind: "No reply", what: "Two attendees haven't answered the Orbit Fitness handover.", meta: "Sent 2 days ago",
+          bl: "2px solid " + V("live"), go: () => this.setState({ screen: "today", sel: "Creative handover", panel: "detail" }) },
+        { kind: "No link", what: noLinkNext ? noLinkNext.title + " has no link. You'll need to call." : "One meeting today has no link.",
+          meta: noLinkNext ? this.hm(noLinkNext.start) + " · " + PLAT[noLinkNext.platform] : "—",
+          bl: "2px dashed " + V("slate"), go: () => noLinkNext && this.setState({ screen: "today", sel: noLinkNext.id, panel: "detail" }) },
+        { kind: "Waiting on you", what: "Omar asked you to approve the Al Barsha budget.", meta: "20 min ago · #direct",
+          bl: "2px solid " + V("signal"), go: () => this.setState({ screen: "chat", chat: "Omar Khalil" }) },
+      ],
+      upcoming: (() => {
+        const ids = new Set(ms.filter(m => !m.cancelled && m.end.getTime() > now).map(m => m.id));
+        return rows.filter(r => ids.has(r.id));
+      })(),
+      dayDone: remaining.length === 0,
+      activity: [
+        { initials: "SD", who: "Sara Deeb", when: this.hm(new Date(now - 46 * 60000)), what: "Nuvel's second cut is in the shared drive.", where: "#CREATIVE" },
+        { initials: "OK", who: "Omar Khalil", when: this.hm(new Date(now - 28 * 60000)), what: "One note on the end card copy before we ship.", where: "#CREATIVE" },
+        { initials: "MF", who: "Mo Farouk", when: this.hm(new Date(now - 95 * 60000)), what: "Kite pacing is 8% under. Shifting spend to Meta today.", where: "#MEDIA" },
+        { initials: "LT", who: "Lina Tarek", when: this.hm(new Date(now - 60 * 60000)), what: "Dina asked for the Q4 flight plan by Thursday.", where: "#NUVEL" },
+      ],
+      clientsWeek: cds.slice(0, 4).map(c => ({ name: c.name, region: c.region, count: c.n + " this wk",
+        open: () => this.setState({ screen: "clients", client: c.name }) })),
+      goToday: () => this.setState({ screen: "today" }),
+      goChat: () => this.setState({ screen: "chat" }),
+    };
+
+    const navDefs = [
+      { key: "home", label: "Home", count: "" },
+      { key: "today", label: "Today", count: String(ms.filter(m => !m.cancelled).length), live: true },
+      { key: "calendar", label: "Calendar", count: "24" },
+      { key: "chat", label: "Chat", count: "6", accent: true },
+      { key: "clients", label: "Clients", count: String(cds.length) },
+    ];
+    if (canManage) navDefs.push({ key: "team", label: "Team", count: String(roster.length) });
+    const navItems = navDefs.map(n => ({
+      label: n.label, count: n.count, bg: s.screen === n.key ? V("hover") : "transparent",
+      fg: s.screen === n.key ? V("ink") : V("slate"), weight: s.screen === n.key ? 600 : 400,
+      countColor: n.accent ? V("signal") : V("slate"),
+      go: () => this.setState({ screen: n.key, panel: null }),
+    }));
+
+    const pq = s.query.trim().toLowerCase();
+    const match = str => !pq || str.toLowerCase().includes(pq);
+    const rawGroups = [
+      { label: "Meetings", items: ms.filter(m => match(m.title + " " + (m.client || ""))).slice(0, 4).map(m => ({ label: m.title, meta: this.hm(m.start), go: () => this.setState({ palette: false, screen: "today", sel: m.id, panel: "detail" }) })) },
+      { label: "People", items: roster.filter(p => match(p.name)).slice(0, 3).map(p => ({ label: p.name, meta: canManage ? (s.roles[p.name] || p.role).toUpperCase() : "DM", go: () => this.setState({ palette: false, screen: "chat", chat: p.name }) })) },
+      { label: "Clients", items: cds.filter(c => match(c.name)).slice(0, 3).map(c => ({ label: c.name, meta: c.n + " MTGS", go: () => this.setState({ palette: false, screen: "clients", client: c.name }) })) },
+      { label: "Channels", items: channelDefs.filter(c => match(c.name)).slice(0, 3).map(c => ({ label: c.name, meta: c.unread ? c.unread + " NEW" : "", go: () => this.setState({ palette: false, screen: "chat", chat: c.name }) })) },
+    ].filter(g => g.items.length);
+    let flat = 0;
+    const paletteGroups = rawGroups.map(g => ({ label: g.label, items: g.items.map(it => {
+      const idx = flat++;
+      return Object.assign({}, it, { bg: idx === s.pIndex ? V("hover") : "transparent", hover: () => this.setState({ pIndex: idx }) });
+    }) }));
+    this._flat = rawGroups.reduce((a, g) => a.concat(g.items), []);
+
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const screenTitles = { home: "Home", today: "Today", calendar: "Calendar", chat: "Chat", clients: "Clients", team: "Team & permissions", profile: "Profile" };
+    const teamGated = s.screen === "team" && !canManage;
+
+    const harnessDefs = [
+      { key: "home", label: "HOME" }, { key: "today", label: "TODAY" }, { key: "calendar", label: "WEEK" }, { key: "chat", label: "CHAT" },
+      { key: "clients", label: "CLIENTS" }, { key: "team", label: "TEAM" }, { key: "profile", label: "PROFILE" },
+      { key: "login", label: "LOGIN" }, { key: "mobile", label: "390" },
+      { key: "role", label: this.role().slice(0, 3).toUpperCase() }, { key: "theme", label: this.theme() === "dark" ? "DARK" : "LIGHT" },
+      { key: "err", label: "ERROR" }, { key: "empty", label: "EMPTY" },
+    ];
+    const roleCycle = { owner: "manager", manager: "member", member: "owner" };
+    const harness = harnessDefs.map(h => {
+      let active = false;
+      if (h.key === "mobile") active = s.view === "mobile";
+      else if (h.key === "err") active = s.err;
+      else if (h.key === "empty") active = s.empty;
+      else if (h.key === "theme") active = this.theme() === "dark";
+      else if (h.key === "role") active = this.role() !== "owner";
+      else active = s.view === "desktop" && s.screen === h.key;
+      return { label: h.label, bg: active ? V("signal") : "transparent", fg: active ? "#FFFFFF" : V("slate"),
+        go: () => {
+          if (h.key === "mobile") this.setState(st => ({ view: st.view === "mobile" ? "desktop" : "mobile" }));
+          else if (h.key === "err") this.setState({ err: !s.err, view: "desktop", screen: "today", panel: "detail", sel: ms[6].id });
+          else if (h.key === "empty") this.setState({ empty: !s.empty, view: "desktop", screen: "calendar" });
+          else if (h.key === "theme") this.setState({ theme: this.theme() === "dark" ? "light" : "dark" });
+          else if (h.key === "role") this.setState({ meRole: roleCycle[this.role()] });
+          else this.setState({ screen: h.key, view: "desktop" });
+        } };
+    });
+
+    return {
+      clock: this.hm(nowD),
+      tz: (new Intl.DateTimeFormat(undefined, { timeZoneName: "short" }).formatToParts(nowD).find(p => p.type === "timeZoneName") || { value: "LOCAL" }).value,
+      railHours, railMarks, railNow: (minsNow / 1440) * 100,
+      gridNow: Math.round((minsNow / 60 - H0) * ROW),
+      isDesktop: s.view === "desktop", isMobile: s.view === "mobile",
+      isLogin: s.screen === "login", isApp: s.screen !== "login",
+      isHome: s.screen === "home", home,
+      isTodayScreen: s.screen === "today", isCalendar: s.screen === "calendar",
+      isChat: s.screen === "chat", isClients: s.screen === "clients",
+      isTeam: s.screen === "team" && canManage, isDenied: teamGated,
+      isProfile: s.screen === "profile",
+      pageTitle: teamGated ? "Not available" : (screenTitles[s.screen] || "Today"),
+      todayStamp: dayNames[(nowD.getDay() + 6) % 7] + " " + this.pad(nowD.getDate()) + " " + monthNames[nowD.getMonth()],
+      weekStamp: this.pad(monday.getDate()) + " " + monthNames[monday.getMonth()] + " – " + this.pad(sunday.getDate()) + " " + monthNames[sunday.getMonth()],
+      dayCountLine: ms.filter(m => !m.cancelled).length + " meetings · " + Math.round(ms.filter(m => !m.cancelled).reduce((a, m) => a + m.dur, 0) / 6) / 10 + "h booked",
+      next, rows, hours, week, navItems, me: { name: meRow.name, initials: meRow.initials, title: meRow.title },
+      clients: cds.map(c => ({ name: c.name, n: String(c.n), open: () => this.setState({ screen: "clients", client: c.name }) })),
+      clientRows, client, clientCount: cds.length + " clients",
+      filterMenus, activeChips, hasFilters: s.filters.length > 0 || !!q,
+      search: s.search, setSearch: e => this.setState({ search: e.target.value }),
+      clearFilters: () => this.setState({ filters: [], search: "" }),
+      prevWeek: () => this.setState(st => ({ weekOffset: st.weekOffset - 1 })),
+      nextWeek: () => this.setState(st => ({ weekOffset: st.weekOffset + 1 })),
+      weekEmpty: s.empty || weekCount === 0, weekFilled: !(s.empty || weekCount === 0),
+      emptyWeekLine: s.filters.length || q ? "No meetings match these filters." : "Nothing scheduled this week.",
+      perms: permCols, people, teamNote: this.role() === "owner" ? "You can grant every role." : "Only an owner can grant the owner role.",
+      presets: ["Owner", "Manager", "Member"].map(p => ({ label: p, bg: s.preset === p ? V("fill-signal") : V("surface"),
+        border: s.preset === p ? V("signal") : V("rule"), fg: s.preset === p ? V("ink") : V("slate"),
+        pick: () => this.setState({ preset: p }) })),
+      types, typeChosen: !!chosen, formFields,
+      promise: chosen ? (chosen.link ? (chosen.key === "client-zoom" ? "Zoom link will be created and emailed to 4 people." : "Google Meet link will be created and emailed to 4 people.") : "No link. Reminders only.") : "",
+      modalOpen: s.modal, openModal: () => this.setState({ modal: true, mtype: null }),
+      closeModal: () => this.setState({ modal: false, mtype: null }),
+      createMeeting: () => {
+        const st0 = new Date(now + 180 * 60000); st0.setMinutes(Math.round(st0.getMinutes() / 5) * 5, 0, 0);
+        const p = { id: "pending", start: st0, end: new Date(st0.getTime() + 45 * 60000), dur: 45, title: "Q4 planning",
+          client: s.client, platform: chosen && chosen.platform ? chosen.platform : "zoom", att: ["RH", "OK", "SD", "LT"], cancelled: false, pending: true };
+        this.setState({ modal: false, mtype: null, pending: p, screen: "today" });
+        clearTimeout(this._p);
+        this._p = setTimeout(() => { this.setState(st => ({ pending: st.pending ? Object.assign({}, st.pending, { pending: false }) : null })); this.fire("Meeting created"); }, 1400);
+      },
+      detail, detailOpen: s.panel === "detail", assistantOpen: s.panel === "assistant",
+      openAssistant: () => this.setState({ panel: "assistant" }),
+      closePanel: () => this.setState({ panel: null }),
+      aIdle: s.aState === "idle", aBusy: s.aState === "busy", aReady: s.aState === "ready", aDone: s.aState === "done",
+      aPrompt: s.aPrompt || "Move the Orbit Fitness handover to tomorrow morning and tell them why.",
+      aAnswer: "Tomorrow 09:30 is the first slot where all four attendees are free.",
+      aSuggestions: [
+        { label: "Move the Orbit Fitness handover to tomorrow morning", run: () => this.ask("Move the Orbit Fitness handover to tomorrow morning and tell them why.") },
+        { label: "Find 45 minutes with Omar and Sara this week", run: () => this.ask("Find 45 minutes with Omar and Sara this week.") },
+        { label: "Cancel the Kite Airlines walkthrough and notify them", run: () => this.ask("Cancel the Kite Airlines walkthrough and notify them.") },
+      ],
+      aPlan: [
+        { verb: "Move", what: "Creative handover → tomorrow 09:30–10:00" },
+        { verb: "Keep", what: "Same Google Meet link" },
+        { verb: "Email", what: "4 people, with the reason you gave" },
+      ],
+      aResult: [
+        { verb: "Moved", what: "Creative handover → tomorrow 09:30–10:00" },
+        { verb: "Emailed", what: "Rana, Sara, Mo, Lina" },
+        { verb: "Logged", what: "Change recorded in the meeting history" },
+      ],
+      assistantKey: e => { if (e.key === "Enter" && e.target.value.trim()) { this.ask(e.target.value.trim()); e.target.value = ""; } },
+      resetAssistant: () => this.setState({ aState: "idle", aPrompt: "" }),
+      confirmAssistant: () => { this.setState({ aState: "done" }); this.fire("Meeting moved · 4 people emailed"); },
+      channels: channelDefs.map(chan), dms: dmDefs.map(chan),
+      chatTitle: s.chat, chatSub: s.chat.startsWith("#") ? "Channel · everyone at MediaClicks" : "Direct message",
+      messageGroups, chatEmpty: thread.length === 0,
+      showComposerHint: s.composerFocus && !s.composerTouched,
+      composerFocus: () => this.setState({ composerFocus: true }),
+      composerBlur: () => this.setState({ composerFocus: false, composerTouched: true }),
+      composerKey: e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.value = ""; this.fire("Message sent"); } },
+      profileFields: [
+        { label: "Display name", value: meRow.name, help: "", font: SANS, tracking: "0" },
+        { label: "Job title", value: meRow.title, help: "Visible to everyone. Not connected to permissions.", font: SANS, tracking: "0" },
+        { label: "Timezone", value: "Asia/Dubai (GMT+4)", help: "", font: SANS, tracking: "0" },
+        { label: "Phone", value: "+971 50 441 2280", help: "", font: MONO, tracking: "-0.02em" },
+      ],
+      digest: s.digest, digestBg: s.digest ? V("fill-signal") : V("surface"),
+      digestBorder: s.digest ? V("signal") : V("rule"), digestKnob: s.digest ? 22 : 2,
+      toggleDigest: () => this.setState(st => ({ digest: !st.digest })),
+      leadTimes: [15, 30, 60].map(n => ({ label: n + " min", bg: s.lead === n ? V("fill-signal") : V("surface"),
+        border: s.lead === n ? V("signal") : V("rule"), fg: s.lead === n ? V("ink") : V("slate"),
+        pick: () => this.setState({ lead: n }) })),
+      enablePush: () => this.fire("Browser notifications on · 15 min before"),
+      linkError: s.err, retry: () => { this.setState({ err: false }); this.fire("Zoom link created"); },
+      signIn: () => this.setState({ screen: "home" }),
+      goToday: () => this.setState({ screen: "home" }),
+      toast: s.toast, toastOpen: !!s.toast,
+      avatarMenu: s.avatarMenu,
+      toggleAvatarMenu: () => this.setState(st => ({ avatarMenu: !st.avatarMenu })),
+      avatarMenuItems: [
+        { label: "Profile", hint: "", go: () => this.setState({ screen: "profile", avatarMenu: false }) },
+        { label: this.theme() === "dark" ? "Light mode" : "Dark mode", hint: "", go: () => this.setState({ theme: this.theme() === "dark" ? "light" : "dark", avatarMenu: false }) },
+        { label: "Sign out", hint: "", go: () => this.setState({ screen: "login", avatarMenu: false, panel: null }) },
+      ],
+      paletteOpen: s.palette, query: s.query,
+      setQuery: e => this.setState({ query: e.target.value, pIndex: 0 }),
+      paletteRef: el => { if (el) setTimeout(() => el.focus(), 0); },
+      paletteKey: e => {
+        const n = this._flat.length;
+        if (e.key === "ArrowDown") { e.preventDefault(); this.setState(st => ({ pIndex: (st.pIndex + 1) % Math.max(1, n) })); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); this.setState(st => ({ pIndex: (st.pIndex - 1 + n) % Math.max(1, n) })); }
+        else if (e.key === "Enter" && this._flat[s.pIndex]) this._flat[s.pIndex].go();
+      },
+      paletteGroups, paletteEmpty: paletteGroups.length === 0,
+      openPalette: () => this.setState({ palette: true, query: "", pIndex: 0 }),
+      shortcutsOpen: s.shortcuts, openShortcuts: () => this.setState({ shortcuts: true }),
+      closeOverlays: () => this.setState({ shortcuts: false, palette: false }),
+      shortcuts: [
+        { what: "Command palette", key: "⌘K" }, { what: "New meeting", key: "N" },
+        { what: "Go to today", key: "T" }, { what: "Previous / next week", key: "← →" },
+        { what: "Focus search", key: "/" }, { what: "Close panel or dialog", key: "Esc" },
+      ],
+      harness,
+    };
+  }
+
+  addFilter(kind, value) {
+    this.setState(st => st.filters.some(f => f.kind === kind && f.value === value) ? null : ({ filters: st.filters.concat([{ kind, value }]) }));
+  }
+  ask(prompt) {
+    this.setState({ aState: "busy", aPrompt: prompt, panel: "assistant" });
+    clearTimeout(this._a);
+    this._a = setTimeout(() => this.setState({ aState: "ready" }), 900);
+  }
+}
+
+</script>
+</body>
+</html>

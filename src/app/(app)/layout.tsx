@@ -18,6 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const items: NavItem[] = [
+    { href: '/home', label: 'Home' },
     { href: '/today', label: 'Today' },
     { href: '/calendar', label: 'Calendar' },
   ]
