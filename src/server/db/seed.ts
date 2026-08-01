@@ -45,7 +45,11 @@ async function main() {
     throw new Error('SEED_OWNER_PASSWORD must be at least 12 characters.')
   }
 
-  const client = postgres(databaseUrl, { max: 1 })
+  // prepare: false — Supabase's transaction-mode pooler (port 6543) does not
+  // support named prepared statements, and the spec names Supabase as a
+  // deployment target. Costs a re-plan per query, which is irrelevant for a
+  // seed that runs once.
+  const client = postgres(databaseUrl, { max: 1, prepare: false })
   const db = drizzle(client, { schema })
 
   try {
