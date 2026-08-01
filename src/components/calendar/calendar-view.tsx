@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { cancelMeetingAction, retryLinkAction } from '@/app/(app)/calendar/actions'
 import { providerCode, providerLabel } from '@/lib/meetings/schema'
 import { formatRange } from '@/lib/time'
+import { DayGrid } from './day-grid'
 import { NewMeetingModal } from './new-meeting-modal'
 import { WeekGrid } from './week-grid'
 import type { ClientDto, MeetingDto, PersonDto } from './types'
@@ -238,12 +239,27 @@ export function CalendarView({
             )}
           </div>
         ) : (
-          <WeekGrid
-            meetings={filtered}
-            weekStartIso={weekStartIso}
-            zone={zone}
-            onOpen={setSelected}
-          />
+          <>
+            {/* Seven columns at 390px is ~47px each — narrower than the time
+                label inside them. Below md this becomes a different view, not
+                a compressed one (brief §9). */}
+            <div className="hidden md:block">
+              <WeekGrid
+                meetings={filtered}
+                weekStartIso={weekStartIso}
+                zone={zone}
+                onOpen={setSelected}
+              />
+            </div>
+            <div className="md:hidden">
+              <DayGrid
+                meetings={filtered}
+                weekStartIso={weekStartIso}
+                zone={zone}
+                onOpen={setSelected}
+              />
+            </div>
+          </>
         )}
       </div>
 

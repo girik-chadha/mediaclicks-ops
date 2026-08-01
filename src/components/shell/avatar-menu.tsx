@@ -54,6 +54,12 @@ export function AvatarMenu({ fullName, roleLabel, onSignOut }: AvatarMenuProps) 
     <div ref={container} className="relative border-t border-rule p-3">
       {open && (
         <div className="animate-rise-in absolute inset-x-3 bottom-[60px] z-30 rounded-sm border border-rule bg-surface p-1 shadow-float">
+          <a
+            href="/profile"
+            className="flex h-[30px] w-full items-center rounded-sm px-2 text-left text-label text-ink transition-colors duration-[80ms] hover:bg-hover"
+          >
+            Profile
+          </a>
           <button
             type="button"
             onClick={toggleTheme}

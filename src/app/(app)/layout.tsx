@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { MobileNav } from '@/components/shell/mobile-nav'
 import { Nav, type NavItem } from '@/components/shell/nav'
 import type { PaletteItem } from '@/components/shell/command-palette'
 import { Rail } from '@/components/shell/rail'
@@ -62,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { id: 'nav-today', label: 'Today', meta: 'SCREEN', group: 'Go to', href: '/today' },
     { id: 'nav-cal', label: 'Calendar', meta: 'SCREEN', group: 'Go to', href: '/calendar' },
     { id: 'nav-clients', label: 'Clients', meta: 'SCREEN', group: 'Go to', href: '/clients' },
+    { id: 'nav-profile', label: 'Profile', meta: 'SCREEN', group: 'Go to', href: '/profile' },
     ...clientList.map((c) => ({
       id: c.id,
       label: c.companyName,
@@ -107,6 +109,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="md:hidden">
           <Rail orientation="horizontal" />
+          {/* The 200px sidebar cannot fit below md, and without this there
+              was no way to navigate on a phone at all. */}
+          <MobileNav items={items.map(({ href, label }) => ({ href, label }))} />
         </div>
 
         <div className="flex min-h-0 flex-1">

@@ -22,6 +22,7 @@ export interface SessionActor extends Actor {
    * cause a hydration mismatch.
    */
   readonly timezone: string
+  readonly phoneE164: string | null
   /**
    * Display only — for the avatar menu and the team screen.
    *
@@ -56,6 +57,7 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
       email: users.email,
       fullName: users.fullName,
       timezone: users.timezone,
+      phoneE164: users.phoneE164,
       deactivatedAt: users.deactivatedAt,
     })
     .from(users)
@@ -90,6 +92,7 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
     email: user.email,
     fullName: user.fullName,
     timezone: user.timezone,
+    phoneE164: user.phoneE164,
     roleNames: held.map((row) => row.name),
     permissions: new Set(granted.map((row) => row.key as PermissionKey)),
   }
