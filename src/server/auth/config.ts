@@ -22,9 +22,23 @@ export const authConfig = {
   },
 
   callbacks: {
-    /** Used by middleware to gate every route. */
-    authorized({ auth }) {
-      return Boolean(auth?.user)
+    /**
+     * Used by middleware to gate every route.
+     *
+     * /login must stay reachable while signed out or the redirect loops, and
+     * must bounce to /today while signed in so the back button does not land
+     * on a sign-in form for an active session.
+     */
+    authorized({ auth, request }) {
+      const signedIn = Boolean(auth?.user)
+      const onLogin = request.nextUrl.pathname.startsWith('/login')
+
+      if (onLogin) {
+        if (signedIn) return Response.redirect(new URL('/today', request.nextUrl))
+        return true
+      }
+
+      return signedIn
     },
 
     jwt({ token, user }) {
