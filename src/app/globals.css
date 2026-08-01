@@ -1,0 +1,264 @@
+@import 'tailwindcss';
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Token layer — extracted from the Claude Design project, not hand-invented.
+
+   The design brief (§3) names six semantic colours. The design file derives a
+   further set from them (surface, fills, hover, invert, veil) which are kept
+   here verbatim so the build and the design cannot drift. Every value below
+   appears in the design's :root / [data-theme="dark"] blocks.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --ink: #14161a;
+  --slate: #5b6472;
+  --paper: #f7f8fa;
+  --surface: #ffffff;
+  --rule: #e2e5ea;
+  --signal: #0b7b8a;
+  --live: #d6216b;
+
+  --fill-signal: rgb(11 123 138 / 0.12);
+  --fill-signal-hi: rgb(11 123 138 / 0.18);
+  --fill-live: rgb(214 33 107 / 0.12);
+  --hover: rgb(226 229 234 / 0.4);
+
+  --invert: #14161a;
+  --invert-fg: #ffffff;
+  --veil: rgb(20 22 26 / 0.4);
+  --float: 0 8px 24px -8px rgb(20 22 26 / 0.16);
+}
+
+[data-theme='dark'] {
+  --ink: #f2f4f7;
+  --slate: #8a94a3;
+  --paper: #101216;
+  --surface: #191c21;
+  --rule: #282c33;
+  --signal: #2aa5b5;
+  --live: #d6216b; /* holds on both themes by design (brief §3) */
+
+  --fill-signal: rgb(42 165 181 / 0.16);
+  --fill-signal-hi: rgb(42 165 181 / 0.24);
+  --fill-live: rgb(214 33 107 / 0.18);
+  --hover: rgb(40 44 51 / 0.5);
+
+  --invert: #f2f4f7;
+  --invert-fg: #101216;
+  --veil: rgb(4 6 9 / 0.6);
+  --float: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+}
+
+/* `inline` makes generated utilities reference var(--x) directly rather than
+   inlining the resolved value, so every utility follows the runtime theme
+   swap on [data-theme] without a second set of dark: variants. */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-rule: var(--rule);
+  --color-signal: var(--signal);
+  --color-live: var(--live);
+  --color-fill-signal: var(--fill-signal);
+  --color-fill-signal-hi: var(--fill-signal-hi);
+  --color-fill-live: var(--fill-live);
+  --color-hover: var(--hover);
+  --color-invert: var(--invert);
+  --color-invert-fg: var(--invert-fg);
+  --color-veil: var(--veil);
+
+  /* Three faces, three jobs (brief §3). Wired to next/font CSS variables. */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, monospace;
+
+  /* Type scale, verbatim from brief §3. Weight and tracking travel with the
+     size so a component cannot use display-lg at the wrong weight. */
+  --text-display-lg: 2.75rem;
+  --text-display-lg--line-height: 1.05;
+  --text-display-lg--font-weight: 600;
+  --text-display-lg--letter-spacing: -0.03em;
+
+  --text-display-sm: 1.75rem;
+  --text-display-sm--line-height: 1.15;
+  --text-display-sm--font-weight: 600;
+  --text-display-sm--letter-spacing: -0.02em;
+
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.3;
+  --text-title--font-weight: 600;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5;
+  --text-body--font-weight: 400;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.3;
+  --text-micro--font-weight: 600;
+  --text-micro--letter-spacing: 0.08em;
+
+  --text-data: 0.8125rem;
+  --text-data--line-height: 1.2;
+  --text-data--font-weight: 400;
+  --text-data--letter-spacing: -0.02em;
+
+  --text-data-lg: 1.25rem;
+  --text-data-lg--line-height: 1.1;
+  --text-data-lg--font-weight: 500;
+  --text-data-lg--letter-spacing: -0.02em;
+
+  /* "Radius: 2px on everything" (brief §3). The whole scale is collapsed
+     rather than adding one bespoke token — that way shadcn/ui components,
+     which reach for rounded-md and rounded-lg, inherit the log geometry
+     instead of quietly reintroducing consumer-app corners. rounded-full is
+     a separate utility and still gives the avatar its circle. */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+
+  /* Exactly one shadow, for floating layers only (brief §3). */
+  --shadow-float: var(--float);
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--signal);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--ink);
+  }
+
+  /* Brief §9: visible focus on every interactive element, no exceptions. */
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--fill-signal);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--slate);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 2px;
+  }
+  *:hover::-webkit-scrollbar-thumb {
+    background: var(--rule);
+  }
+}
+
+/* Motion (brief §7). Durations are fixed here so components cannot invent
+   their own timing. */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-rise-in {
+  animation: riseIn 120ms ease-out;
+}
+@utility animate-modal-in {
+  animation: modalIn 160ms ease-out;
+}
+@utility animate-panel-in {
+  animation: panelIn 200ms ease-out;
+}
+@utility animate-veil-in {
+  animation: veilIn 160ms ease-out;
+}
+@utility animate-toast-in {
+  animation: toastIn 160ms ease-out;
+}
+
+/* Brief §7: kill everything except the playhead, which updates position
+   without transition. The playhead sets its own inline `top`, so excluding
+   it here is enough — it keeps moving, it just stops animating. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
