@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { eq } from 'drizzle-orm'
 import type { Actor, PermissionKey } from '@/lib/permissions'
 import { db } from '../db'
-import { permissions, rolePermissions, userRoles, users } from '../db/schema'
+import { permissions, rolePermissions, roles, userRoles, users } from '../db/schema'
 import { auth } from './index'
 
 /**
@@ -16,6 +16,14 @@ import { auth } from './index'
 export interface SessionActor extends Actor {
   readonly email: string
   readonly fullName: string
+  /**
+   * Display only — for the avatar menu and the team screen.
+   *
+   * Nothing branches on these. Authorization reads `permissions`, never a
+   * role name, which is what lets the Owner define custom roles from the UI
+   * without a deploy (§3).
+   */
+  readonly roleNames: readonly string[]
 }
 
 /**
@@ -54,18 +62,27 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
   // request instead of at token expiry.
   if (!user || user.deactivatedAt) return null
 
-  const granted = await db
-    .selectDistinct({ key: permissions.key })
-    .from(userRoles)
-    .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
-    .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
-    .where(eq(userRoles.userId, userId))
+  const [granted, held] = await Promise.all([
+    db
+      .selectDistinct({ key: permissions.key })
+      .from(userRoles)
+      .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+      .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+      .where(eq(userRoles.userId, userId)),
+
+    db
+      .select({ name: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(eq(userRoles.userId, userId)),
+  ])
 
   return {
     id: user.id,
     orgId: user.orgId,
     email: user.email,
     fullName: user.fullName,
+    roleNames: held.map((row) => row.name),
     permissions: new Set(granted.map((row) => row.key as PermissionKey)),
   }
 })
