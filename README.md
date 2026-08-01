@@ -19,7 +19,7 @@ Phase 1 (Foundation), in progress. Nothing is deployed yet.
 | Step | State |
 |---|---|
 | Project structure, token system, test harness | done |
-| Drizzle schema + migrations + seed | not started |
+| Drizzle schema + migrations + seed | done |
 | Permission model + Auth.js | not started |
 | App shell (Rail, nav, avatar menu) | not started |
 
@@ -66,13 +66,16 @@ npx auth secret                # generates AUTH_SECRET
 npm run dev
 ```
 
-Database commands land at Stop 2:
-
 ```bash
 npm run db:generate   # write a migration from the schema
 npm run db:migrate    # apply migrations
-npm run db:seed       # roles, permissions, day-one Owner
+npm run db:seed       # roles, permissions, day-one Owner (idempotent)
 ```
+
+The schema test suite runs against **PGlite**, an embedded Postgres 16
+compiled to WASM. That means `npm test` verifies the real migration and its
+constraints with no database service running, locally or in CI. A CHECK
+constraint that has never been executed is a belief, not a guarantee.
 
 Verification:
 
