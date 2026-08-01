@@ -21,7 +21,7 @@ import {
   SYSTEM_ROLE_NAMES,
   SYSTEM_ROLE_PERMISSIONS,
   type SystemRoleName,
-} from '../authz/permissions'
+} from '../../lib/permissions'
 import * as schema from './schema'
 import { organisations, permissions, rolePermissions, roles, userRoles, users } from './schema'
 
