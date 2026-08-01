@@ -21,11 +21,18 @@ Phase 1 (Foundation), in progress. Nothing is deployed yet.
 | Project structure, token system, test harness | done |
 | Drizzle schema + migrations + seed | done |
 | Permission model + Auth.js | done |
-| App shell (Rail, nav, avatar menu) | next |
+| App shell (Rail, nav, avatar menu) + login + user creation | done |
 
-> The app is not navigable yet. Middleware redirects unauthenticated traffic
-> to `/login`, and that page arrives with the shell. Until then, use
-> `npm test` rather than `npm run dev`.
+**Phase 1 is complete.** Running it needs a real Postgres — set
+`DATABASE_URL`, then `npm run db:migrate && npm run db:seed`, and sign in as
+the seeded Owner. Supabase and Neon both provision a free database in a
+couple of minutes.
+
+PGlite covers the schema tests but cannot back the running app: its socket
+server does not implement the extended query protocol, so plain DDL works
+(which is why `drizzle-kit migrate` succeeds against it) while every
+parameterised query fails. Running dev against a different driver than
+production would also be its own source of late-surfacing bugs.
 
 Phases 2–6 (calendar, notifications, conferencing, assistant, polish) are
 untouched. See §6 of the spec for the build order.
