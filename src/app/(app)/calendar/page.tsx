@@ -96,8 +96,9 @@ export default async function CalendarPage({
           attendeeIds: [actor.id, '00000000-0000-0000-0000-000000000000'],
         })}
         weekLabel={weekLabel}
-        onPrev={`/calendar?week=${offset - 1}`}
-        onNext={`/calendar?week=${offset + 1}`}
+        prevHref={`/calendar?week=${offset - 1}`}
+        nextHref={`/calendar?week=${offset + 1}`}
+        todayHref="/calendar"
       />
     </div>
   )

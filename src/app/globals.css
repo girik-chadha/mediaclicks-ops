@@ -234,6 +234,17 @@
     transform: none;
   }
 }
+/* The toast's own dismissal timer, drawn as a hairline draining left to
+   right. Duration and the animation are the same fact, so the toast cannot
+   disappear out of step with its bar. */
+@keyframes runOut {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
 
 @utility animate-rise-in {
   animation: riseIn 120ms ease-out;
@@ -249,6 +260,10 @@
 }
 @utility animate-toast-in {
   animation: toastIn 160ms ease-out;
+}
+@utility animate-run-out {
+  animation: runOut 4000ms linear forwards;
+  transform-origin: left;
 }
 
 /* Brief §7: kill everything except the playhead, which updates position
