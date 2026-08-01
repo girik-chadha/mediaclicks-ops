@@ -1,5 +1,6 @@
 'use client'
 
+import { LogoMark } from './logo'
 import { dayFraction, formatClock, timezoneLabel, useNow } from './use-now'
 
 /**
@@ -67,10 +68,8 @@ export function Rail({ orientation = 'vertical' }: { orientation?: 'vertical' | 
 
   return (
     <div className="relative z-10 flex w-14 shrink-0 flex-col border-r border-rule bg-surface">
-      <div className="flex h-12 items-center justify-center border-b border-rule">
-        {/* Placeholder wordmark from the design. Swap for the real asset. */}
-        <div className="size-2.5 rounded-sm border-2 border-ink" aria-hidden />
-        <span className="sr-only">MediaClicks</span>
+      <div className="flex h-12 items-center justify-center border-b border-rule text-ink">
+        <LogoMark size={20} />
       </div>
 
       <div className="relative flex-1 py-2">

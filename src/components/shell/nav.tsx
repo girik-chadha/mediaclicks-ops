@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { AvatarMenu } from './avatar-menu'
 import { CommandPalette, type PaletteItem } from './command-palette'
+import { Wordmark } from './logo'
 
 export interface NavItem {
   /** `Route`, not `string`: typedRoutes then catches a link to a page that
@@ -32,8 +33,8 @@ export function Nav({ items, fullName, roleLabel, paletteItems, onSignOut }: Nav
 
   return (
     <div className="relative z-20 flex w-[200px] shrink-0 flex-col border-r border-rule bg-surface">
-      <div className="flex h-12 items-center border-b border-rule px-4 font-display text-title">
-        MediaClicks
+      <div className="flex h-12 items-center border-b border-rule px-4">
+        <Wordmark size={18} />
       </div>
 
       <nav className="flex flex-col gap-0.5 p-2 pt-3">

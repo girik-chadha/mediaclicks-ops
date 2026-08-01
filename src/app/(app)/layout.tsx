@@ -6,6 +6,7 @@ import { can } from '@/lib/permissions'
 import { addDays, formatTime, startOfDay } from '@/lib/time'
 import { signOut } from '@/server/auth'
 import { getActor } from '@/server/auth/session'
+import { listClients } from '@/server/clients/queries'
 import { listMeetingsInRange, listTeam } from '@/server/meetings/queries'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -23,10 +24,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const zone = actor.timezone
   const dayStart = startOfDay(new Date(), zone)
 
-  const [today, team] = await Promise.all([
+  const [today, team, clientList] = await Promise.all([
     listMeetingsInRange(actor, dayStart, addDays(dayStart, 1, zone)),
     listTeam(actor),
+    listClients(actor),
   ])
+
+  const clientCount = clientList.length
 
   const visibleToday = today.filter((m) =>
     can(actor, 'meeting.view', {
@@ -44,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       count: String(visibleToday.filter((m) => m.status !== 'cancelled').length),
     },
     { href: '/calendar', label: 'Calendar' },
+    { href: '/clients', label: 'Clients', count: String(clientCount) },
   ]
 
   // Team is hidden from people who cannot add anyone. Hiding it is
@@ -56,6 +61,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { id: 'nav-home', label: 'Home', meta: 'SCREEN', group: 'Go to', href: '/home' },
     { id: 'nav-today', label: 'Today', meta: 'SCREEN', group: 'Go to', href: '/today' },
     { id: 'nav-cal', label: 'Calendar', meta: 'SCREEN', group: 'Go to', href: '/calendar' },
+    { id: 'nav-clients', label: 'Clients', meta: 'SCREEN', group: 'Go to', href: '/clients' },
+    ...clientList.map((c) => ({
+      id: c.id,
+      label: c.companyName,
+      meta: `${c.meetingCount} MTG`,
+      group: 'Clients',
+      href: '/clients',
+    })),
     ...(can(actor, 'user.invite')
       ? [
           {
