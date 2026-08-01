@@ -20,8 +20,12 @@ Phase 1 (Foundation), in progress. Nothing is deployed yet.
 |---|---|
 | Project structure, token system, test harness | done |
 | Drizzle schema + migrations + seed | done |
-| Permission model + Auth.js | not started |
-| App shell (Rail, nav, avatar menu) | not started |
+| Permission model + Auth.js | done |
+| App shell (Rail, nav, avatar menu) | next |
+
+> The app is not navigable yet. Middleware redirects unauthenticated traffic
+> to `/login`, and that page arrives with the shell. Until then, use
+> `npm test` rather than `npm run dev`.
 
 Phases 2–6 (calendar, notifications, conferencing, assistant, polish) are
 untouched. See §6 of the spec for the build order.
@@ -52,6 +56,26 @@ Next.js 15 (App Router, RSC)
 
 A client component that imports anything under `src/server` fails at build
 rather than shipping a connection string to the browser.
+
+### Authorization
+
+`can()` lives in `src/lib/permissions` and imports nothing session-, server-
+or database-related. That boundary is asserted by a test, not left to
+discipline, because three things depend on it: the permission matrix needs no
+mocking, the UI can hide controls with the same function the server enforces
+with, and §4.6's assistant tools call it directly — which is what makes "the
+agent cannot do anything the user could not do by clicking" structurally true
+rather than remembered.
+
+`requirePermission()` in `src/server/auth` is the thin wrapper that knows
+about sessions and throws. That is the only layer allowed to depend on
+Auth.js.
+
+Auth.js is split across two files for a runtime reason: `config.ts` is
+Edge-safe and is what `middleware.ts` imports, while `index.ts` adds the
+credentials provider and runs on Node. argon2 is a native module and Drizzle
+needs a TCP socket; neither exists on the Edge. The build verifies this —
+the Edge bundle contains no argon2, Postgres or Drizzle.
 
 ---
 
