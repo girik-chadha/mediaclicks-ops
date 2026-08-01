@@ -1,0 +1,20 @@
+import NextAuth from 'next-auth'
+import { authConfig } from '@/server/auth/config'
+
+/**
+ * Imports the Edge-safe config directly, never src/server/auth — that module
+ * pulls in argon2 and Postgres, neither of which exists on the Edge runtime.
+ *
+ * This is a redirect for unauthenticated traffic, not an authorization check.
+ * Every mutation still calls requirePermission() server-side; middleware only
+ * decides whether you see a page or the login screen.
+ */
+export const { auth: middleware } = NextAuth(authConfig)
+
+export const config = {
+  matcher: [
+    // Everything except Next internals, the auth endpoints themselves, and
+    // static files.
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2)$).*)',
+  ],
+}
