@@ -23,7 +23,16 @@ import {
   type SystemRoleName,
 } from '../../lib/permissions'
 import * as schema from './schema'
-import { organisations, permissions, rolePermissions, roles, userRoles, users } from './schema'
+import {
+  channelMembers,
+  channels,
+  organisations,
+  permissions,
+  rolePermissions,
+  roles,
+  userRoles,
+  users,
+} from './schema'
 
 config({ path: '.env.local' })
 config({ path: '.env' })
@@ -142,6 +151,30 @@ async function main() {
       await tx
         .insert(userRoles)
         .values({ userId: ownerId, roleId: roleIdByName.get('Owner')! })
+        .onConflictDoNothing()
+
+      // ── 5. A default channel ──────────────────────────────────────────
+      // A fresh organisation with no channels makes chat a dead end, and
+      // "create your first channel" is a worse first impression than a room
+      // that already exists.
+      const existingChannel = await tx
+        .select({ id: channels.id })
+        .from(channels)
+        .where(and(eq(channels.orgId, orgId), eq(channels.name, 'general')))
+        .limit(1)
+
+      const generalId =
+        existingChannel[0]?.id ??
+        (
+          await tx
+            .insert(channels)
+            .values({ orgId, kind: 'channel', name: 'general', createdByUserId: ownerId })
+            .returning({ id: channels.id })
+        )[0]!.id
+
+      await tx
+        .insert(channelMembers)
+        .values({ channelId: generalId, userId: ownerId })
         .onConflictDoNothing()
 
       console.log(`org        ${orgName} (${orgId})`)

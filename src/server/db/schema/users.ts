@@ -35,6 +35,14 @@ export const users = pgTable(
       .notNull()
       .defaultNow(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+
+    /**
+     * Presence, refreshed at most once a minute. The design shows a dot beside
+     * each person in chat, and the honest alternatives were a websocket we do
+     * not need yet or a fake dot — a presence indicator that is decorative is
+     * worse than none, because people rely on it.
+     */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   },
   (t) => [
     /**

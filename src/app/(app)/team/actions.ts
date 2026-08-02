@@ -1,12 +1,19 @@
 'use server'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { hashPassword } from '@/server/auth/password'
 import { requirePermission } from '@/server/auth/require'
 import { db } from '@/server/db'
-import { auditLog, roles, userRoles, users } from '@/server/db/schema'
+import {
+  auditLog,
+  channelMembers,
+  channels,
+  roles,
+  userRoles,
+  users,
+} from '@/server/db/schema'
 
 export interface CreateUserState {
   error?: string
@@ -104,6 +111,28 @@ export async function createUser(
       const newUserId = inserted[0]!.id
 
       await tx.insert(userRoles).values({ userId: newUserId, roleId })
+
+      // Join every open channel. Someone who joins the company is already in
+      // the room — making them hunt for #general on day one is a chore that
+      // exists only because the software forgot to do it.
+      const open = await tx
+        .select({ id: channels.id })
+        .from(channels)
+        .where(
+          and(
+            eq(channels.orgId, actor.orgId),
+            eq(channels.kind, 'channel'),
+            eq(channels.isPrivate, false),
+            isNull(channels.archivedAt),
+          ),
+        )
+
+      if (open.length > 0) {
+        await tx
+          .insert(channelMembers)
+          .values(open.map((c) => ({ channelId: c.id, userId: newUserId })))
+          .onConflictDoNothing()
+      }
 
       // Written in the same transaction as the change it describes, so the
       // two commit together or not at all (ADR 0003).
