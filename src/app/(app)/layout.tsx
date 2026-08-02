@@ -8,7 +8,7 @@ import { addDays, formatTime, startOfDay } from '@/lib/time'
 import { signOut } from '@/server/auth'
 import { getActor } from '@/server/auth/session'
 import { touchPresence } from '@/server/chat/mutations'
-import { listConversations } from '@/server/chat/queries'
+import { countUnread } from '@/server/chat/queries'
 import { listClients } from '@/server/clients/queries'
 import { listMeetingsInRange, listTeam } from '@/server/meetings/queries'
 
@@ -27,11 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const zone = actor.timezone
   const dayStart = startOfDay(new Date(), zone)
 
-  const [today, team, clientList, conversations] = await Promise.all([
+  const [today, team, clientList, unreadTotal] = await Promise.all([
     listMeetingsInRange(actor, dayStart, addDays(dayStart, 1, zone)),
     listTeam(actor),
     listClients(actor),
-    listConversations(actor),
+    countUnread(actor),
     // Presence. Awaited in parallel rather than fired and forgotten: a
     // floating promise in a server component can be killed when the response
     // ends, and it adds no latency here because it runs alongside the rest.
@@ -40,7 +40,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ])
 
   const clientCount = clientList.length
-  const unreadTotal = conversations.reduce((n, conv) => n + conv.unread, 0)
 
   const visibleToday = today.filter((m) =>
     can(actor, 'meeting.view', {

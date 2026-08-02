@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gt, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { SessionActor } from '../auth/session'
 import { db } from '../db'
 import { channelMembers, channels, messages, users } from '../db/schema'
@@ -30,6 +30,15 @@ export interface ConversationSummary {
 export async function listConversations(
   actor: SessionActor,
 ): Promise<ConversationSummary[]> {
+  /**
+   * Three queries, not one per conversation.
+   *
+   * This was an N+1: a membership query, then an unread count, a last-message
+   * lookup and an "other member" lookup *for each row*. Ten conversations
+   * meant thirty-one round trips, and at ~160ms each that is the difference
+   * between a page appearing and a page arriving. Aggregating per channel and
+   * folding in memory turns it into three.
+   */
   const rows = await db
     .select({
       id: channels.id,
@@ -49,63 +58,65 @@ export async function listConversations(
 
   if (rows.length === 0) return []
 
-  const summaries = await Promise.all(
-    rows.map(async (row) => {
-      const [{ unread = 0 } = { unread: 0 }] = await db
-        .select({ unread: sql<number>`count(*)::int` })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.channelId, row.id),
-            isNull(messages.deletedAt),
-            ne(messages.authorUserId, actor.id),
-            row.lastReadAt ? gt(messages.createdAt, row.lastReadAt) : sql`true`,
-          ),
-        )
+  const ids = rows.map((r) => r.id)
 
-      const [latest] = await db
-        .select({ at: messages.createdAt })
-        .from(messages)
-        .where(and(eq(messages.channelId, row.id), isNull(messages.deletedAt)))
-        .orderBy(desc(messages.createdAt))
-        .limit(1)
+  const [stats, others] = await Promise.all([
+    // Unread and last-message, per channel, in one grouped pass. The unread
+    // comparison uses each membership's own last_read_at, joined rather than
+    // looped.
+    db
+      .select({
+        channelId: messages.channelId,
+        unread: sql<number>`count(*) filter (
+          where ${messages.authorUserId} is distinct from ${actor.id}
+            and (${channelMembers.lastReadAt} is null
+                 or ${messages.createdAt} > ${channelMembers.lastReadAt})
+        )::int`,
+        lastAt: sql<Date | null>`max(${messages.createdAt})`,
+      })
+      .from(messages)
+      .innerJoin(
+        channelMembers,
+        and(
+          eq(channelMembers.channelId, messages.channelId),
+          eq(channelMembers.userId, actor.id),
+        ),
+      )
+      .where(and(inArray(messages.channelId, ids), isNull(messages.deletedAt)))
+      .groupBy(messages.channelId),
 
-      let label = row.name ?? 'Conversation'
-      let otherUserId: string | null = null
-      let online = false
+    // The other participant of every direct conversation, in one query.
+    db
+      .select({
+        channelId: channelMembers.channelId,
+        id: users.id,
+        fullName: users.fullName,
+        lastSeenAt: users.lastSeenAt,
+      })
+      .from(channelMembers)
+      .innerJoin(users, eq(users.id, channelMembers.userId))
+      .where(
+        and(inArray(channelMembers.channelId, ids), ne(channelMembers.userId, actor.id)),
+      ),
+  ])
 
-      if (row.kind === 'direct') {
-        const [other] = await db
-          .select({
-            id: users.id,
-            fullName: users.fullName,
-            lastSeenAt: users.lastSeenAt,
-          })
-          .from(channelMembers)
-          .innerJoin(users, eq(users.id, channelMembers.userId))
-          .where(
-            and(eq(channelMembers.channelId, row.id), ne(channelMembers.userId, actor.id)),
-          )
-          .limit(1)
+  const statByChannel = new Map(stats.map((s) => [s.channelId, s]))
+  const otherByChannel = new Map(others.map((o) => [o.channelId, o]))
 
-        if (other) {
-          label = other.fullName
-          otherUserId = other.id
-          online = isOnline(other.lastSeenAt)
-        }
-      }
+  const summaries = rows.map((row) => {
+    const stat = statByChannel.get(row.id)
+    const other = row.kind === 'direct' ? otherByChannel.get(row.id) : undefined
 
-      return {
-        id: row.id,
-        kind: row.kind,
-        label,
-        unread,
-        otherUserId,
-        online,
-        lastMessageAt: latest?.at ?? null,
-      }
-    }),
-  )
+    return {
+      id: row.id,
+      kind: row.kind,
+      label: other?.fullName ?? row.name ?? 'Conversation',
+      unread: stat?.unread ?? 0,
+      otherUserId: other?.id ?? null,
+      online: other ? isOnline(other.lastSeenAt) : false,
+      lastMessageAt: stat?.lastAt ? new Date(stat.lastAt) : null,
+    }
+  })
 
   // Channels alphabetically, direct messages by recency — a channel list that
   // reorders itself as people talk is impossible to build muscle memory for,
@@ -115,6 +126,39 @@ export async function listConversations(
     if (a.kind === 'channel') return a.label.localeCompare(b.label)
     return (b.lastMessageAt?.getTime() ?? 0) - (a.lastMessageAt?.getTime() ?? 0)
   })
+}
+
+/**
+ * Total unread across every conversation, in one query.
+ *
+ * The nav badge is the only thing the app layout needed from chat, and it was
+ * paying for the entire conversation list — labels, presence, last-message
+ * times — on every page, to render a number. This is that number.
+ */
+export async function countUnread(actor: SessionActor): Promise<number> {
+  const [row] = await db
+    .select({ unread: sql<number>`count(*)::int` })
+    .from(messages)
+    .innerJoin(
+      channelMembers,
+      and(
+        eq(channelMembers.channelId, messages.channelId),
+        eq(channelMembers.userId, actor.id),
+      ),
+    )
+    .innerJoin(channels, eq(channels.id, messages.channelId))
+    .where(
+      and(
+        inOrg(channels, actor),
+        isNull(channels.archivedAt),
+        isNull(messages.deletedAt),
+        ne(messages.authorUserId, actor.id),
+        sql`(${channelMembers.lastReadAt} is null
+             or ${messages.createdAt} > ${channelMembers.lastReadAt})`,
+      ),
+    )
+
+  return row?.unread ?? 0
 }
 
 export function isOnline(lastSeenAt: Date | null): boolean {
