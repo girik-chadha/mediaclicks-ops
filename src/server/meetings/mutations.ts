@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { MeetingInput, MeetingUpdateInput } from '@/lib/meetings/schema'
 import { requirePermission } from '../auth/require'
 import { requireActor, type SessionActor } from '../auth/session'
+import { cancelPendingFor } from '../notifications/worker'
 import { distributeMeeting } from './distribute'
 import { db } from '../db'
 import { auditLog, meetingAttendees, meetings } from '../db/schema'
@@ -210,6 +211,11 @@ export async function cancelMeeting(id: string, reason?: string): Promise<void> 
       after: { ...auditShape(existing), status: 'cancelled', reason: reason ?? null },
     })
   })
+
+  // §4.4: pending notifications are cancelled with the meeting. A reminder
+  // for a call that is not happening is worse than no reminder — someone
+  // clears their afternoon for it.
+  await cancelPendingFor(id)
 
 }
 

@@ -1,0 +1,37 @@
+name: Notifications
+
+# Vercel's Hobby plan caps cron at once a day, and a thirty-minute reminder
+# needs minutes. GitHub Actions schedules are free and go down to five.
+#
+# GitHub runs scheduled workflows late under load, sometimes by several
+# minutes. That is fine here: the worker asks "is this due yet", not "is it
+# exactly now", and the unique index makes a late or repeated tick harmless.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# Never let two ticks overlap. The database would cope — that is what the
+# constraint is for — but there is no reason to make it.
+concurrency:
+  group: notifications
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the notification worker
+        run: |
+          code=$(curl -s -o /tmp/out -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/notifications")
+          cat /tmp/out
+          echo
+          if [ "$code" != "200" ]; then
+            echo "worker returned HTTP $code"
+            exit 1
+          fi
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
