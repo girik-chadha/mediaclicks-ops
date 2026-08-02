@@ -13,25 +13,35 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v5: v4 targets Node 20, which GitHub has deprecated on its runners.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          # Match the development runtime and @types/node, so a version
+          # difference can never be the reason CI disagrees with a laptop.
+          node-version: 24
           cache: npm
 
       - run: npm ci
 
+      # Each step runs even if an earlier one failed, so one push reports
+      # every problem rather than only the first. Chasing failures one per
+      # run is how a red pipeline stays red for a week.
       - name: Typecheck
+        if: '!cancelled()'
         run: npm run typecheck
 
       - name: Lint
+        if: '!cancelled()'
         run: npm run lint
 
       - name: Test
+        if: '!cancelled()'
         run: npm test
 
       - name: Build
+        if: '!cancelled()'
         run: npm run build
         env:
           # Build-time only. Never a real credential — the app must not need a
