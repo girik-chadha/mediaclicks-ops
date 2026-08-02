@@ -13,7 +13,7 @@ export default function LoginPage() {
       <LogoMark size={44} className="text-ink" />
       <h1 className="mt-5 font-display text-display-lg">MediaClicks</h1>
       <p className="mt-2 text-micro uppercase text-slate">Operations</p>
-      <LoginForm />
+      <LoginForm googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID)} />
     </div>
   )
 }

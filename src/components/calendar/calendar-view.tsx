@@ -48,7 +48,6 @@ export function CalendarView({
   const [modalOpen, setModalOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<MeetingDto | null>(null)
-  const [shortcuts, setShortcuts] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -69,10 +68,7 @@ export function CalendarView({
         setModalOpen(true)
       } else if (e.key === 't') {
         window.location.href = todayHref
-      } else if (e.key === '?') {
-        setShortcuts(true)
       } else if (e.key === 'Escape') {
-        setShortcuts(false)
         setSelected(null)
       }
     }
@@ -299,7 +295,6 @@ export function CalendarView({
         onSaved={onSaved}
       />
 
-      {shortcuts && <ShortcutSheet onClose={() => setShortcuts(false)} />}
 
       {toast && (
         <div className="animate-toast-in fixed bottom-16 right-6 z-50 min-w-[240px] overflow-hidden rounded-sm border border-rule bg-surface shadow-float">
@@ -311,53 +306,7 @@ export function CalendarView({
   )
 }
 
-const SHORTCUTS = [
-  { what: 'New meeting', key: 'n' },
-  { what: 'Jump to today', key: 't' },
-  { what: 'Previous / next week', key: '← →' },
-  { what: 'Close panel or dialog', key: 'esc' },
-  { what: 'This list', key: '?' },
-]
 
-function ShortcutSheet({ onClose }: { onClose: () => void }) {
-  return (
-    <div
-      className="animate-veil-in fixed inset-0 z-40 flex items-center justify-center bg-veil p-4"
-      onMouseDown={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Shortcuts"
-        onMouseDown={(e) => e.stopPropagation()}
-        className="animate-modal-in w-[420px] max-w-full rounded-sm border border-rule bg-surface p-6 shadow-float"
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-title">Shortcuts</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="size-7 cursor-pointer rounded-sm text-slate transition-colors duration-[80ms] hover:bg-rule"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-4">
-          {SHORTCUTS.map((s) => (
-            <div
-              key={s.what}
-              className="flex items-center justify-between border-b border-rule py-2"
-            >
-              <span className="text-body">{s.what}</span>
-              <span className="font-mono text-data tracking-[-0.02em] text-slate">{s.key}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /** Slides in from the right, 480px (brief §6.4). */
 function DetailPanel({

@@ -31,7 +31,8 @@ export const authConfig = {
      */
     authorized({ auth, request }) {
       const signedIn = Boolean(auth?.user)
-      const onLogin = request.nextUrl.pathname.startsWith('/login')
+      const path = request.nextUrl.pathname
+      const onLogin = path.startsWith('/login') || path.startsWith('/forgot')
 
       if (onLogin) {
         if (signedIn) return Response.redirect(new URL('/today', request.nextUrl))
