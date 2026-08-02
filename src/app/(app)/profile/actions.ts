@@ -16,6 +16,12 @@ const input = z.object({
   fullName: z.string().trim().min(1, 'Your name cannot be blank.').max(200),
   phoneE164: z.string().trim().max(32).optional(),
   timezone: z.string().trim().min(1).max(64),
+  dailyDigest: z.boolean(),
+  /** Wall-clock HH:mm, read in the user's own zone (§4.4). */
+  digestTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Digest time must be a time of day.'),
+  reminderLeadMinutes: z.coerce.number().int().min(5).max(240),
 })
 
 /** Rejects a zone Intl cannot resolve, rather than storing something that
@@ -42,6 +48,10 @@ export async function updateProfileAction(
     fullName: form.get('fullName'),
     phoneE164: form.get('phoneE164') || undefined,
     timezone: form.get('timezone'),
+    // An unchecked checkbox sends nothing at all, so absence is false.
+    dailyDigest: form.get('dailyDigest') === 'on',
+    digestTime: form.get('digestTime'),
+    reminderLeadMinutes: form.get('reminderLeadMinutes'),
   })
 
   if (!parsed.success) {
@@ -59,6 +69,9 @@ export async function updateProfileAction(
         fullName: parsed.data.fullName,
         phoneE164: parsed.data.phoneE164 ?? null,
         timezone: parsed.data.timezone,
+        dailyDigest: parsed.data.dailyDigest,
+        digestTime: parsed.data.digestTime,
+        reminderLeadMinutes: parsed.data.reminderLeadMinutes,
       })
       .where(eq(users.id, actor.id))
 
@@ -70,7 +83,13 @@ export async function updateProfileAction(
       entityType: 'user',
       entityId: actor.id,
       before: { fullName: actor.fullName, timezone: actor.timezone },
-      after: { fullName: parsed.data.fullName, timezone: parsed.data.timezone },
+      after: {
+        fullName: parsed.data.fullName,
+        timezone: parsed.data.timezone,
+        dailyDigest: parsed.data.dailyDigest,
+        digestTime: parsed.data.digestTime,
+        reminderLeadMinutes: parsed.data.reminderLeadMinutes,
+      },
     })
   })
 

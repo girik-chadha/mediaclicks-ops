@@ -23,6 +23,9 @@ export interface SessionActor extends Actor {
    */
   readonly timezone: string
   readonly phoneE164: string | null
+  readonly dailyDigest: boolean
+  readonly digestTime: string
+  readonly reminderLeadMinutes: number
   /**
    * Display only — for the avatar menu and the team screen.
    *
@@ -58,6 +61,9 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
       fullName: users.fullName,
       timezone: users.timezone,
       phoneE164: users.phoneE164,
+      dailyDigest: users.dailyDigest,
+      digestTime: users.digestTime,
+      reminderLeadMinutes: users.reminderLeadMinutes,
       deactivatedAt: users.deactivatedAt,
     })
     .from(users)
@@ -93,6 +99,9 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
     fullName: user.fullName,
     timezone: user.timezone,
     phoneE164: user.phoneE164,
+    dailyDigest: user.dailyDigest,
+    digestTime: user.digestTime,
+    reminderLeadMinutes: user.reminderLeadMinutes,
     roleNames: held.map((row) => row.name),
     permissions: new Set(granted.map((row) => row.key as PermissionKey)),
   }

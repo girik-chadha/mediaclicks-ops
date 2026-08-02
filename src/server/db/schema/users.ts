@@ -1,4 +1,13 @@
-import { index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core'
 import { organisations } from './org'
 
 export const users = pgTable(
@@ -43,6 +52,19 @@ export const users = pgTable(
      * worse than none, because people rely on it.
      */
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+
+    /**
+     * Notification preferences (§4.4).
+     *
+     * Stored now, consumed in Phase 3. The spec asks for a per-user digest
+     * time and a per-user reminder lead, and a preference that is genuinely
+     * saved is worth more than a toggle that pretends — when the workers
+     * land they read these rather than needing everyone to set them again.
+     */
+    dailyDigest: boolean('daily_digest').notNull().default(true),
+    /** Local wall-clock time, interpreted in the user's own timezone. */
+    digestTime: text('digest_time').notNull().default('08:00'),
+    reminderLeadMinutes: integer('reminder_lead_minutes').notNull().default(30),
   },
   (t) => [
     /**
