@@ -28,8 +28,16 @@ export const users = pgTable(
     avatarUrl: text('avatar_url'),
     phoneE164: text('phone_e164'),
 
-    /** IANA zone. All instants are stored UTC and rendered through this. */
-    timezone: text('timezone').notNull().default('Asia/Dubai'),
+    /**
+     * IANA zone. All instants are stored UTC and rendered through this.
+     *
+     * The default is where the team actually is, because a wrong default is
+     * not a cosmetic problem in a scheduling product — it renders every
+     * meeting at the wrong time until someone notices and corrects it, and
+     * "the app said 3pm" is how people miss calls. Anyone can override it on
+     * their profile; this is only the starting point.
+     */
+    timezone: text('timezone').notNull().default('Asia/Kolkata'),
 
     /**
      * Soft delete. People leave agencies, but `meetings.created_by_user_id`
