@@ -201,6 +201,12 @@ async function reminderBody(
   // dropped when a meeting is cancelled; this is the belt to that braces.
   if (!m || m.status === 'cancelled') return null
 
+  // Already started. Rows that could not be delivered — an outage, or email
+  // simply not configured yet — are retried on every tick, so without this
+  // the day email is finally switched on would begin with a burst of
+  // reminders for meetings that finished last week.
+  if (m.startsAt.getTime() <= Date.now()) return null
+
   const when = formatRange(m.startsAt, m.endsAt, zone)
   return {
     subject: `${m.title} at ${formatTime(m.startsAt, zone)}`,

@@ -13,8 +13,15 @@ export const { auth: middleware } = NextAuth(authConfig)
 
 export const config = {
   matcher: [
-    // Everything except Next internals, the auth endpoints themselves, and
-    // static files.
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2)$).*)',
+    /**
+     * Everything except API routes, Next internals and static files.
+     *
+     * All of `api/`, not just `api/auth`: route handlers authorise
+     * themselves, and there is no version of "redirect this API call to an
+     * HTML login page" that helps a caller. The notification worker sends a
+     * bearer token and was getting a 307 to /login, which would have failed
+     * silently on a schedule nobody watches.
+     */
+    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2)$).*)',
   ],
 }
