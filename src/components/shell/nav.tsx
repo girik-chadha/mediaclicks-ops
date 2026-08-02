@@ -23,12 +23,12 @@ export interface NavProps {
   items: NavItem[]
   fullName: string
   roleLabel: string
-  paletteItems: PaletteItem[]
+  loadPalette: () => Promise<PaletteItem[]>
   /** A server action, passed down from the layout. */
   onSignOut: () => Promise<void>
 }
 
-export function Nav({ items, fullName, roleLabel, paletteItems, onSignOut }: NavProps) {
+export function Nav({ items, fullName, roleLabel, loadPalette, onSignOut }: NavProps) {
   const pathname = usePathname()
 
   return (
@@ -82,7 +82,7 @@ export function Nav({ items, fullName, roleLabel, paletteItems, onSignOut }: Nav
         <AvatarMenu fullName={fullName} roleLabel={roleLabel} onSignOut={onSignOut} />
       </div>
 
-      <CommandPalette items={paletteItems} />
+      <CommandPalette load={loadPalette} />
     </div>
   )
 }

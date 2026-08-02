@@ -16,8 +16,14 @@ export interface PaletteItem {
  * Fixed 560px, opens 96px from the top, groups results with micro eyebrows,
  * and carries a mono hint bar along the bottom.
  */
-export function CommandPalette({ items = [] }: { items?: PaletteItem[] }) {
+export function CommandPalette({
+  load,
+}: {
+  /** Server action, called the first time the palette opens. */
+  load: () => Promise<PaletteItem[]>
+}) {
   const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<PaletteItem[] | null>(null)
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const input = useRef<HTMLInputElement>(null)
@@ -41,11 +47,26 @@ export function CommandPalette({ items = [] }: { items?: PaletteItem[] }) {
     if (open) requestAnimationFrame(() => input.current?.focus())
   }, [open])
 
+  // Fetched once, on first open, then kept. Most page views never open this,
+  // so loading it up front was several round trips spent on nothing.
+  useEffect(() => {
+    if (!open || items !== null) return
+    let cancelled = false
+    void load().then((loaded) => {
+      if (!cancelled) setItems(loaded)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, items, load])
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
     const all = items ?? []
     return q ? all.filter((i) => `${i.label} ${i.meta}`.toLowerCase().includes(q)) : all
   }, [items, query])
+
+  const loading = items === null
 
   const groups = useMemo(() => {
     const map = new Map<string, PaletteItem[]>()
@@ -100,7 +121,9 @@ export function CommandPalette({ items = [] }: { items?: PaletteItem[] }) {
         />
 
         <div className="max-h-[360px] overflow-auto py-2">
-          {groups.length === 0 ? (
+          {loading ? (
+            <div className="px-4 py-6 text-body text-slate">Loading…</div>
+          ) : groups.length === 0 ? (
             <div className="px-4 py-6 text-body text-slate">Nothing matches {query}.</div>
           ) : (
             groups.map(([group, list]) => (

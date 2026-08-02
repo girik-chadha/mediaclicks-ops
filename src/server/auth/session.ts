@@ -77,20 +77,26 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
   // request instead of at token expiry.
   if (!user || user.deactivatedAt) return null
 
-  const [granted, held] = await Promise.all([
-    db
-      .selectDistinct({ key: permissions.key })
-      .from(userRoles)
-      .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
-      .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
-      .where(eq(userRoles.userId, userId)),
+  /**
+   * Roles and permissions in one round trip.
+   *
+   * These were two queries, run in parallel but still two waits on the wire.
+   * A round trip to this database measures ~160ms, so the join is worth more
+   * than the handful of duplicate role names it returns — a person holds one
+   * or two roles, and folding them in memory is free.
+   */
+  const grants = await db
+    .select({ roleName: roles.name, permissionKey: permissions.key })
+    .from(userRoles)
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+    .leftJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+    .where(eq(userRoles.userId, userId))
 
-    db
-      .select({ name: roles.name })
-      .from(userRoles)
-      .innerJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(eq(userRoles.userId, userId)),
-  ])
+  const roleNames = [...new Set(grants.map((g) => g.roleName))]
+  const permissionKeys = new Set(
+    grants.flatMap((g) => (g.permissionKey ? [g.permissionKey as PermissionKey] : [])),
+  )
 
   return {
     id: user.id,
@@ -102,8 +108,8 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
     dailyDigest: user.dailyDigest,
     digestTime: user.digestTime,
     reminderLeadMinutes: user.reminderLeadMinutes,
-    roleNames: held.map((row) => row.name),
-    permissions: new Set(granted.map((row) => row.key as PermissionKey)),
+    roleNames,
+    permissions: permissionKeys,
   }
 })
 
