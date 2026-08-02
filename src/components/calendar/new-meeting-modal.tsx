@@ -289,6 +289,30 @@ export function NewMeetingModal({
                   </select>
                 </Field>
 
+                {/* Only where there is something to paste. WhatsApp and "no
+                    platform" have no link by design (§4.3.1), and showing an
+                    empty field for them would imply one is missing. */}
+                {(provider === 'google_meet' || provider === 'zoom') && (
+                  <Field
+                    index={1}
+                    label={`${providerLabel(provider)} link`}
+                    help="Create the call yourself and paste the link. It goes to the team in chat, and to the client by email."
+                  >
+                    <input
+                      name="conferenceUrl"
+                      type="url"
+                      required
+                      defaultValue={editing?.conferenceUrl ?? ''}
+                      placeholder={
+                        provider === 'zoom'
+                          ? 'https://zoom.us/j/…'
+                          : 'https://meet.google.com/…'
+                      }
+                      className={CONTROL}
+                    />
+                  </Field>
+                )}
+
                 <Field index={2} label="Title">
                   <input
                     name="title"
@@ -418,14 +442,16 @@ export function NewMeetingModal({
               {/* Step 4 — say exactly what will happen, then the actions. */}
               <div className="mt-6 flex items-center justify-between gap-4 border-t border-rule pt-4">
                 <p className="text-label font-medium">
-                  {/* §4.1.1: changing the platform on an existing meeting
-                      revokes the old link and issues a new one, so say so. */}
-                  {isEditing && editing && provider !== editing.conferencingProvider
-                    ? `Platform changed. ${outcomeSummary(provider as 'google_meet' | 'zoom' | 'whatsapp' | 'none', attendees.length)}`
-                    : outcomeSummary(
-                        provider as 'google_meet' | 'zoom' | 'whatsapp' | 'none',
-                        attendees.length,
-                      )}
+                  {/* §4.1.1 step 4: name the recipients, not the mechanism.
+                      The likeliest surprise now is that the client gets an
+                      email at all. */}
+                  {outcomeSummary(
+                    provider,
+                    Math.max(0, attendees.length - 1),
+                    type === 'client'
+                      ? (clients.find((c) => c.id === clientId)?.companyName ?? 'the client')
+                      : null,
+                  )}
                 </p>
                 <div className="flex shrink-0 gap-2">
                   <button

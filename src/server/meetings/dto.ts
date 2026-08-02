@@ -1,8 +1,8 @@
 import 'server-only'
 import type { MeetingDto } from '@/components/calendar/types'
+import { generatesLink } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
 import type { SessionActor } from '../auth/session'
-import { needsLinkRetry } from '../conferencing'
 import type { MeetingRow } from './queries'
 
 /**
@@ -37,7 +37,12 @@ export function toMeetingDto(actor: SessionActor, m: MeetingRow): MeetingDto {
     attendees: m.attendees,
     canEdit: can(actor, 'meeting.edit', subject),
     canCancel: can(actor, 'meeting.delete', subject),
-    needsLinkRetry: needsLinkRetry(m),
+    // Chose a link-based platform and pasted nothing. Nothing generates
+    // links now, so this is a gap in the meeting, not a failed integration.
+    missingLink:
+      generatesLink(m.conferencingProvider) &&
+      !m.conferenceUrl &&
+      m.status !== 'cancelled',
   }
 }
 

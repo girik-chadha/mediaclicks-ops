@@ -25,6 +25,20 @@ const base = z.object({
   endsAt: z.coerce.date(),
   /** Creator included by default and removable (§4.1.1 step 3). */
   attendeeIds: z.array(z.uuid()).min(1, 'A meeting needs at least one attendee.'),
+
+  /**
+   * The join link, pasted by whoever is scheduling.
+   *
+   * Nothing generates this. The organiser creates the call in Meet or Zoom
+   * themselves and brings the link here, and the app's job is distribution:
+   * it goes to the team in chat and to the client by email.
+   */
+  conferenceUrl: z
+    .string()
+    .trim()
+    .url('That does not look like a link. Paste the full URL.')
+    .max(2048)
+    .optional(),
 })
 
 const teamMeeting = base.extend({
@@ -47,6 +61,17 @@ export const meetingInput = z
   .refine((m) => m.endsAt.getTime() - m.startsAt.getTime() <= 12 * 60 * 60 * 1000, {
     message: 'A meeting longer than 12 hours is probably a mistake.',
     path: ['endsAt'],
+  })
+  // Meet and Zoom are link-based, so choosing one and pasting nothing leaves
+  // everybody with a calendar entry and no way to join. WhatsApp and "no
+  // platform" have nothing to paste, by design (§4.3.1).
+  .refine((m) => !generatesLink(m.conferencingProvider) || Boolean(m.conferenceUrl), {
+    message: 'Paste the meeting link, or pick a platform that does not need one.',
+    path: ['conferenceUrl'],
+  })
+  .refine((m) => generatesLink(m.conferencingProvider) || !m.conferenceUrl, {
+    message: 'That platform has no link. Clear it, or pick Google Meet or Zoom.',
+    path: ['conferenceUrl'],
   })
 
 export type MeetingInput = z.infer<typeof meetingInput>
@@ -94,14 +119,26 @@ export function providerCode(provider: (typeof CONFERENCING_PROVIDER)[number]): 
 }
 
 /**
- * §4.1.1 step 4: say exactly what will happen before saving. This kills the
- * likeliest user error, which is expecting a link and not getting one.
+ * §4.1.1 step 4: say exactly what will happen before saving.
+ *
+ * The likeliest error is no longer "expected a link and did not get one" —
+ * nothing generates links now — but "did not realise this would be sent to
+ * the client". So the sentence names the recipients, not the mechanism.
  */
 export function outcomeSummary(
   provider: (typeof CONFERENCING_PROVIDER)[number],
-  recipientCount: number,
+  teamCount: number,
+  clientName?: string | null,
 ): string {
-  if (!generatesLink(provider)) return 'No link. Reminders only.'
-  const people = `${recipientCount} ${recipientCount === 1 ? 'person' : 'people'}`
-  return `${providerLabel(provider)} link will be created and emailed to ${people}.`
+  const team = `${teamCount} ${teamCount === 1 ? 'person' : 'people'}`
+
+  if (!generatesLink(provider)) {
+    return clientName
+      ? `No link. ${team} get it in chat; ${clientName} is not emailed.`
+      : `No link. ${team} get it in chat.`
+  }
+
+  return clientName
+    ? `Link goes to ${team} in chat and by email to ${clientName}.`
+    : `Link goes to ${team} in chat.`
 }

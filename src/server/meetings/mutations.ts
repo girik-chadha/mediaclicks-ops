@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { MeetingInput, MeetingUpdateInput } from '@/lib/meetings/schema'
 import { requirePermission } from '../auth/require'
 import { requireActor, type SessionActor } from '../auth/session'
-import { attachConferenceLink, revokeConferenceLink } from '../conferencing'
+import { distributeMeeting } from './distribute'
 import { db } from '../db'
 import { auditLog, meetingAttendees, meetings } from '../db/schema'
 import { inOrg } from '../scope'
@@ -81,9 +81,9 @@ export async function createMeeting(input: MeetingInput): Promise<string> {
         clientId,
         createdByUserId: actor.id,
         conferencingProvider: input.conferencingProvider,
-        // §4.2: the link is created by the provider integration in Phase 4.
-        // The meeting saves either way and is never silently dropped.
-        conferenceUrl: null,
+        // Pasted by the organiser, not generated. Null for WhatsApp and
+        // "no platform", which have no link by design.
+        conferenceUrl: input.conferenceUrl ?? null,
         status: 'scheduled',
       })
       .returning({ id: meetings.id })
@@ -113,10 +113,9 @@ export async function createMeeting(input: MeetingInput): Promise<string> {
     return meetingId
   })
 
-  // Deliberately after the commit. Inside the transaction, a slow or failing
-  // platform would roll the meeting back — which §4.2 forbids outright: the
-  // meeting saves either way and the UI offers a retry.
-  await attachConferenceLink(actor, meetingId)
+  // After the commit, deliberately. A chat write or a mail outage must never
+  // roll back a meeting that is already saved.
+  await distributeMeeting(actor, meetingId, 'created')
 
   return meetingId
 }
@@ -143,6 +142,7 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
         type: input.type,
         clientId,
         conferencingProvider: input.conferencingProvider,
+        conferenceUrl: input.conferenceUrl ?? null,
       })
       .where(and(inOrg(meetings, actor), eq(meetings.id, input.id)))
 
@@ -169,15 +169,15 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
     })
   })
 
-  // §4.1.1: changing the platform revokes the old link and issues a new one.
-  if (input.conferencingProvider !== existing.conferencingProvider) {
-    await revokeConferenceLink(actor, input.id)
-    await db
-      .update(meetings)
-      .set({ conferenceUrl: null, conferenceExternalId: null })
-      .where(and(inOrg(meetings, actor), eq(meetings.id, input.id)))
-    await attachConferenceLink(actor, input.id)
-  }
+  // Only tell people when something they would act on actually moved.
+  // Re-sending on every edit trains everyone to ignore the messages.
+  const worthTelling =
+    input.conferenceUrl !== existing.conferenceUrl ||
+    input.startsAt.getTime() !== existing.startsAt.getTime() ||
+    input.endsAt.getTime() !== existing.endsAt.getTime() ||
+    input.conferencingProvider !== existing.conferencingProvider
+
+  if (worthTelling) await distributeMeeting(actor, input.id, 'updated')
 }
 
 /**
@@ -211,28 +211,8 @@ export async function cancelMeeting(id: string, reason?: string): Promise<void> 
     })
   })
 
-  // Best effort, and after the commit. A platform being down must not stop
-  // someone cancelling a meeting.
-  await revokeConferenceLink(actor, id)
 }
 
-/**
- * Retries a link that failed at creation (§4.2's retry action).
- *
- * Gated on meeting.edit rather than being open to anyone who can see the
- * meeting: issuing a link emails everyone on it.
- */
-export async function retryConferenceLink(id: string): Promise<boolean> {
-  const { actor, existing } = await loadForWrite(id)
-
-  await requirePermission('meeting.edit', {
-    orgId: existing.orgId,
-    createdByUserId: existing.createdByUserId,
-    attendeeIds: existing.attendeeIds,
-  })
-
-  return attachConferenceLink(actor, id)
-}
 
 /** The pre-image an audit row needs, read through the org-scoped query. */
 async function loadForWrite(

@@ -55,6 +55,9 @@ async function parseForm(form: FormData) {
     endsAt: toInstant(end),
     attendeeIds: attendeeIds.length > 0 ? attendeeIds : [actor.id],
     conferencingProvider: fieldOf(form, 'conferencingProvider') ?? 'none',
+    // Pasted by the organiser. Ignored unless the platform is link-based, so
+    // switching to WhatsApp does not carry a stale Zoom link along with it.
+    conferenceUrl: fieldOf(form, 'conferenceUrl'),
     ...(type === 'client' ? { clientId: fieldOf(form, 'clientId') } : {}),
   })
 
@@ -125,22 +128,6 @@ export async function updateMeetingAction(
   return {
     updated: result.data.title,
     conflicts: conflicts.map((c) => ({ fullName: c.fullName, meetingTitle: c.meetingTitle })),
-  }
-}
-
-/** §4.2's retry action for a link that failed at creation. */
-export async function retryLinkAction(
-  id: string,
-): Promise<{ error?: string; attached?: boolean }> {
-  try {
-    const { retryConferenceLink } = await import('@/server/meetings/mutations')
-    const attached = await retryConferenceLink(id)
-    revalidatePath('/calendar')
-    revalidatePath('/today')
-    revalidatePath('/home')
-    return { attached }
-  } catch (error) {
-    return { error: messageFor(error) }
   }
 }
 
