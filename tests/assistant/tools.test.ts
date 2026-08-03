@@ -88,28 +88,6 @@ describe('the tool catalogue', () => {
     }
   })
 
-  it('describes when to call each tool, not just what it does', () => {
-    // Descriptions are the model's only guidance on triggering. A one-liner
-    // gets a tool that fires at the wrong moment.
-    for (const tool of TOOLS) expect(tool.description.length).toBeGreaterThan(80)
-  })
-
-  it('declares schemas the API will accept in strict mode', () => {
-    for (const tool of TOOLS) {
-      const schema = tool.input_schema
-      expect(schema.type).toBe('object')
-      // strict mode rejects a schema that leaves extra keys open.
-      expect(schema.additionalProperties).toBe(false)
-      for (const key of schema.required) {
-        expect(Object.keys(schema.properties), `${tool.name}.${key}`).toContain(key)
-      }
-      // Every property is described, or the model is guessing at its meaning.
-      for (const prop of Object.values(schema.properties)) {
-        expect(prop.description.length).toBeGreaterThan(0)
-      }
-    }
-  })
-
   it('only stages the tools that change something', () => {
     const writes = TOOLS.filter((t) => t.effect === 'write').map((t) => t.name)
     expect(writes.sort()).toEqual(

@@ -3,12 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import type { PerformedAction } from '@/lib/assistant/plan'
 import { requireActor } from '@/server/auth/session'
-import {
-  AssistantUnconfiguredError,
-  assistantIsConfigured,
-  runAssistant,
-} from '@/server/assistant/agent'
 import { performPlan } from '@/server/assistant/execute'
+import { planFromPrompt } from '@/server/assistant/planner'
 import { seal } from '@/server/assistant/seal'
 
 /**
@@ -25,28 +21,23 @@ export interface PlanLine {
 }
 
 export type AskResult =
-  | { readonly ok: true; readonly answer: string; readonly plan: PlanLine[]; readonly token: string | null }
-  | { readonly ok: false; readonly error: string; readonly unconfigured?: boolean }
+  | {
+      readonly ok: true
+      readonly answer: string
+      readonly plan: PlanLine[]
+      readonly token: string | null
+    }
+  | { readonly ok: false; readonly error: string }
 
 export async function askAssistant(prompt: string): Promise<AskResult> {
   const trimmed = prompt.trim()
   if (!trimmed) return { ok: false, error: 'Say what you need.' }
-  if (trimmed.length > 2000) return { ok: false, error: 'That is too long. Try a sentence.' }
-
-  if (!assistantIsConfigured()) {
-    return {
-      ok: false,
-      unconfigured: true,
-      error:
-        'The assistant is not connected yet — it needs an ANTHROPIC_API_KEY. ' +
-        'Everything else on this screen works without it.',
-    }
-  }
+  if (trimmed.length > 500) return { ok: false, error: 'That is too long. Try a sentence.' }
 
   const actor = await requireActor()
 
   try {
-    const { answer, actions } = await runAssistant(actor, trimmed)
+    const { answer, actions } = await planFromPrompt(actor, trimmed)
     return {
       ok: true,
       answer,
@@ -56,13 +47,8 @@ export async function askAssistant(prompt: string): Promise<AskResult> {
       // nothing.
       token: actions.length > 0 ? seal(actor.id, actions) : null,
     }
-  } catch (error) {
-    if (error instanceof AssistantUnconfiguredError) {
-      return { ok: false, unconfigured: true, error: error.message }
-    }
-    // The upstream message can carry request detail; the panel gets a plain
-    // sentence and the person gets a working retry.
-    return { ok: false, error: 'The assistant could not answer just now. Try again.' }
+  } catch {
+    return { ok: false, error: 'Something went wrong working that out. Try again.' }
   }
 }
 

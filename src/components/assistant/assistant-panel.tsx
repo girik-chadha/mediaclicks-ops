@@ -6,6 +6,7 @@ import {
   confirmAssistant,
   type PlanLine,
 } from '@/app/(app)/assistant-actions'
+import { EXAMPLES } from '@/lib/assistant/parse'
 import type { PerformedAction } from '@/lib/assistant/plan'
 
 /**
@@ -13,8 +14,8 @@ import type { PerformedAction } from '@/lib/assistant/plan'
  *
  * Four states, exactly as the design draws them: idle with suggestions,
  * busy with a shimmer skeleton, ready with a "Will do" card the person must
- * confirm, and done. Errors reuse the ready layout without a card, because
- * "I couldn't do that" belongs where the answer would have been.
+ * confirm, and done. Answers with nothing to confirm reuse the ready layout
+ * without a card, because a reply belongs where the reply would have been.
  *
  * The Confirm button is the only thing in this feature that has an effect.
  * Everything above it is a proposal.
@@ -27,13 +28,18 @@ export function openAssistant() {
   window.dispatchEvent(new Event(OPEN_ASSISTANT))
 }
 
-type Phase = 'idle' | 'busy' | 'ready' | 'done' | 'error'
+/**
+ * `answered` covers both "here is your answer, there is nothing to confirm"
+ * and "I couldn't do that". They render identically because they are the
+ * same thing to the reader: a reply, and no card.
+ */
+type Phase = 'idle' | 'busy' | 'ready' | 'done' | 'answered'
 
-const SUGGESTIONS = [
-  'What have I got on tomorrow?',
-  'Find an hour next week when the whole team is free',
-  'Move my next client call to Thursday afternoon',
-]
+/**
+ * Taken from the grammar rather than written here, so the panel cannot
+ * advertise a phrasing the parser has stopped understanding.
+ */
+const SUGGESTIONS = EXAMPLES.slice(0, 3)
 
 export function AssistantPanel() {
   const [open, setOpen] = useState(false)
@@ -78,7 +84,7 @@ export function AssistantPanel() {
       const result = await askAssistant(trimmed)
       if (!result.ok) {
         setAnswer(result.error)
-        setPhase('error')
+        setPhase('answered')
         return
       }
       setAnswer(result.answer)
@@ -87,7 +93,7 @@ export function AssistantPanel() {
       // A question with no changes to make is finished, not awaiting
       // confirmation — showing a Confirm button for nothing is a lie about
       // what the button does.
-      setPhase(result.token ? 'ready' : 'error')
+      setPhase(result.token ? 'ready' : 'answered')
     })
   }
 
@@ -97,7 +103,7 @@ export function AssistantPanel() {
       const result = await confirmAssistant(token)
       if (!result.ok) {
         setAnswer(result.error)
-        setPhase('error')
+        setPhase('answered')
         return
       }
       setDone(result.done)
@@ -167,10 +173,12 @@ export function AssistantPanel() {
           </div>
         )}
 
-        {(phase === 'ready' || phase === 'error') && (
+        {(phase === 'ready' || phase === 'answered') && (
           <div className="flex flex-col gap-1">
             <div className="text-micro uppercase text-slate">Assistant</div>
-            <p className="text-body">{answer}</p>
+            {/* pre-line: answers carry lists — a day's meetings, the free
+                slots, the meetings that matched an ambiguous title. */}
+            <p className="whitespace-pre-line text-body">{answer}</p>
           </div>
         )}
 
@@ -202,7 +210,7 @@ export function AssistantPanel() {
           </>
         )}
 
-        {phase === 'error' && (
+        {phase === 'answered' && (
           <button
             type="button"
             onClick={reset}

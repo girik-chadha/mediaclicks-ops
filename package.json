@@ -23,7 +23,6 @@
     "db:demo": "tsx scripts/demo-data.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
     "@node-rs/argon2": "^2.0.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",

@@ -27,6 +27,11 @@ an effect is `performPlan()` in `src/server/assistant/execute.ts`, reached
 only by the Confirm button. If you add a tool, give it an `action` in
 `src/lib/assistant/tools.ts` or the matrix test fails — see ADR 0007.
 
+**Zero marginal cost is a requirement, not a default.** No paid API is
+called at runtime, by anything. The assistant's planner is a grammar
+(`src/lib/assistant/parse.ts`), not a model. If you extend it, extend the
+grammar and its tests — do not reach for an SDK.
+
 Meeting intelligence (§4.5) is deferred indefinitely. Its tables
 (`meeting_transcripts`, `meeting_summaries`) and the `recording_consent_given`
 flag exist in the schema deliberately and must not be removed — retrofitting

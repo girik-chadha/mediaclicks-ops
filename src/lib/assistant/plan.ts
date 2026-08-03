@@ -17,9 +17,12 @@ export interface StagedAction {
   readonly what: string
 }
 
-export interface AssistantPlan {
-  readonly prompt: string
-  /** What the model said, above the card. */
+/**
+ * What the planner returns: a sentence for above the card, and the actions
+ * for inside it. This is the seam — anything that can turn a request into
+ * these two things plugs in without the confirmation machinery noticing.
+ */
+export interface AssistantReply {
   readonly answer: string
   readonly actions: readonly StagedAction[]
 }
