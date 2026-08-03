@@ -59,7 +59,7 @@ export function HeaderActions() {
 
       <a
         href="/calendar"
-        className="flex h-8 items-center rounded-sm bg-signal px-3 text-label font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+        className="flex h-8 items-center rounded-sm btn-signal px-3 text-label font-semibold"
       >
         New meeting
       </a>

@@ -51,7 +51,7 @@ function Submit({ editing }: { editing: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className="h-11 cursor-pointer rounded-sm bg-signal px-4 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-60"
+      className="h-11 cursor-pointer rounded-sm btn-signal px-4 text-body font-semibold disabled:opacity-60"
     >
       {/* §8: the toast reuses the button's verb, so they always agree. */}
       {pending

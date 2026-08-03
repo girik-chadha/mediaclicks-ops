@@ -184,7 +184,7 @@ export function AssistantPanel() {
                   type="button"
                   onClick={confirm}
                   disabled={pending}
-                  className="h-9 cursor-pointer rounded-sm bg-signal px-4 text-label font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-50"
+                  className="h-9 cursor-pointer rounded-sm btn-signal px-4 text-label font-semibold disabled:opacity-50"
                 >
                   {pending ? 'Working…' : 'Confirm'}
                 </button>

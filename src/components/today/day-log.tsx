@@ -55,7 +55,7 @@ export function DayLog({
         <p className="font-display text-display-sm">Nothing scheduled today.</p>
         <a
           href="/calendar"
-          className="mt-4 inline-flex h-10 items-center rounded-sm bg-signal px-4 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+          className="mt-4 inline-flex h-10 items-center rounded-sm btn-signal px-4 text-body font-semibold"
         >
           + New meeting
         </a>
@@ -251,7 +251,7 @@ function NextUp({
               href={meeting.conferenceUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-11 items-center rounded-sm bg-signal px-6 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+              className="inline-flex h-11 items-center rounded-sm btn-signal px-6 text-body font-semibold"
             >
               Join {providerLabel(meeting.conferencingProvider)}
             </a>

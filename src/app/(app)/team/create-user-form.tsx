@@ -10,7 +10,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-8 cursor-pointer rounded-sm bg-signal px-3 text-label font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-60"
+      className="h-8 cursor-pointer rounded-sm btn-signal px-3 text-label font-semibold disabled:opacity-60"
     >
       {/* §8: the toast uses the button's verb. */}
       {pending ? 'Adding' : 'Add person'}

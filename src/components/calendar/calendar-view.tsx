@@ -202,7 +202,7 @@ export function CalendarView({
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="h-7 cursor-pointer rounded-sm bg-signal px-3 text-label font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+            className="h-7 cursor-pointer rounded-sm btn-signal px-3 text-label font-semibold"
           >
             New meeting
           </button>
@@ -228,7 +228,7 @@ export function CalendarView({
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className="h-10 cursor-pointer rounded-sm bg-signal px-4 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+                className="h-10 cursor-pointer rounded-sm btn-signal px-4 text-body font-semibold"
               >
                 + New meeting
               </button>
@@ -374,7 +374,7 @@ function DetailPanel({
               href={meeting.conferenceUrl!}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-11 items-center rounded-sm bg-signal px-6 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+              className="inline-flex h-11 items-center rounded-sm btn-signal px-6 text-body font-semibold"
             >
               Join {providerLabel(meeting.conferencingProvider)}
             </a>

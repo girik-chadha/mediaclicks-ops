@@ -279,6 +279,30 @@
   animation: shimmer 800ms ease-in-out infinite alternate;
 }
 
+/* The one filled button (brief §3: a single primary action per screen).
+   Colour only — geometry stays at the call site, because the same treatment
+   appears at five different heights.
+
+   Hover flips to --invert, not --ink. They are the same colour on the light
+   theme, so nothing changes there; on the dark theme --ink is near-white,
+   which put white text on a white background and made every primary button
+   in the app disappear under the cursor. --invert exists precisely for
+   "the opposite of the current background", and carries --invert-fg with it
+   so the label follows. Defined once so the next filled button cannot
+   reintroduce it. */
+@utility btn-signal {
+  background: var(--signal);
+  color: #ffffff;
+  transition:
+    background 80ms linear,
+    color 80ms linear;
+
+  &:hover {
+    background: var(--invert);
+    color: var(--invert-fg);
+  }
+}
+
 /* Brief §7: kill everything except the playhead, which updates position
    without transition. The playhead sets its own inline `top`, so excluding
    it here is enough — it keeps moving, it just stops animating. */

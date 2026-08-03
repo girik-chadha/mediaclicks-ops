@@ -13,7 +13,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-11 cursor-pointer rounded-sm bg-signal text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-60"
+      className="h-11 cursor-pointer rounded-sm btn-signal text-body font-semibold disabled:opacity-60"
     >
       {pending ? 'Signing in' : 'Sign in'}
     </button>

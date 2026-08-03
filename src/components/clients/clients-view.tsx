@@ -35,7 +35,7 @@ function Submit() {
     <button
       type="submit"
       disabled={pending}
-      className="h-9 cursor-pointer rounded-sm bg-signal px-3 text-label font-semibold text-white transition-colors duration-[80ms] hover:bg-ink disabled:opacity-60"
+      className="h-9 cursor-pointer rounded-sm btn-signal px-3 text-label font-semibold disabled:opacity-60"
     >
       {pending ? 'Adding client' : 'Add client'}
     </button>

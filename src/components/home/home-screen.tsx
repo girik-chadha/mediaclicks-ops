@@ -184,7 +184,7 @@ export function HomeScreen({
                     href={next.conferenceUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-11 items-center rounded-sm bg-signal px-6 text-body font-semibold text-white transition-colors duration-[80ms] hover:bg-ink"
+                    className="inline-flex h-11 items-center rounded-sm btn-signal px-6 text-body font-semibold"
                   >
                     Join {providerLabel(next.conferencingProvider)}
                   </a>
