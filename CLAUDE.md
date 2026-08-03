@@ -19,8 +19,13 @@ and the spec disagree, the spec wins and this file is stale — fix it.
 Build order is spec §6. **Only build the current phase.** Phases ship working
 and deployed before the next begins.
 
-Currently: **Phase 1 (Foundation)**. Do not build the calendar, notifications,
-conferencing, clients UI, chat, or the assistant.
+Currently: **Phase 5 (Assistant)** — shipped. Foundation, calendar,
+conferencing and distribution, clients, chat, and notifications are all live.
+
+The assistant's write tools stage; they never execute. The only code path to
+an effect is `performPlan()` in `src/server/assistant/execute.ts`, reached
+only by the Confirm button. If you add a tool, give it an `action` in
+`src/lib/assistant/tools.ts` or the matrix test fails — see ADR 0007.
 
 Meeting intelligence (§4.5) is deferred indefinitely. Its tables
 (`meeting_transcripts`, `meeting_summaries`) and the `recording_consent_given`

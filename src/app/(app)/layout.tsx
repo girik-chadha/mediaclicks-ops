@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { AssistantPanel } from '@/components/assistant/assistant-panel'
 import { MobileNav } from '@/components/shell/mobile-nav'
 import { Nav, type NavItem } from '@/components/shell/nav'
 import { Rail } from '@/components/shell/rail'
@@ -87,6 +88,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <main className="min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
+
+      {/* Mounted once for the whole shell rather than per screen: the
+          assistant answers the same questions wherever you are, and a panel
+          that unmounts on navigation would lose a half-finished plan. */}
+      <AssistantPanel />
     </div>
   )
 }

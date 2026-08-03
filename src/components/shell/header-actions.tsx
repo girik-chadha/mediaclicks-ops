@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { openAssistant } from '@/components/assistant/assistant-panel'
 
 const SHORTCUTS = [
   { what: 'New meeting', key: 'n' },
   { what: 'Jump to today', key: 't' },
   { what: 'Search everything', key: '⌘K' },
+  { what: 'Ask the assistant', key: 'a' },
   { what: 'Previous / next week', key: '← →' },
   { what: 'Close panel or dialog', key: 'esc' },
   { what: 'This list', key: '?' },
@@ -29,6 +31,7 @@ export function HeaderActions() {
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return
 
       if (e.key === '?') setOpen(true)
+      else if (e.key === 'a') openAssistant()
       else if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKey)
@@ -44,6 +47,14 @@ export function HeaderActions() {
         className="size-7 cursor-pointer rounded-sm text-label text-slate transition-colors duration-[80ms] hover:bg-rule"
       >
         ?
+      </button>
+
+      <button
+        type="button"
+        onClick={openAssistant}
+        className="h-8 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal"
+      >
+        Assistant
       </button>
 
       <a

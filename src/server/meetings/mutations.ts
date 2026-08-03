@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { MeetingInput, MeetingUpdateInput } from '@/lib/meetings/schema'
 import { requirePermission } from '../auth/require'
 import { requireActor, type SessionActor } from '../auth/session'
+import { agentInitiated } from '../audit/agent-context'
 import { cancelPendingFor } from '../notifications/worker'
 import { distributeMeeting } from './distribute'
 import { db } from '../db'
@@ -109,6 +110,7 @@ export async function createMeeting(input: MeetingInput): Promise<string> {
       entityId: meetingId,
       before: null,
       after: auditShape({ ...input, clientId }),
+      agentInitiated: agentInitiated(),
     })
 
     return meetingId
@@ -167,6 +169,7 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
       entityId: input.id,
       before: auditShape(existing),
       after: auditShape({ ...input, clientId }),
+      agentInitiated: agentInitiated(),
     })
   })
 
@@ -209,6 +212,7 @@ export async function cancelMeeting(id: string, reason?: string): Promise<void> 
       entityId: id,
       before: auditShape(existing),
       after: { ...auditShape(existing), status: 'cancelled', reason: reason ?? null },
+      agentInitiated: agentInitiated(),
     })
   })
 

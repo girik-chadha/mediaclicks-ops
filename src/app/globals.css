@@ -245,6 +245,16 @@
     transform: scaleX(0);
   }
 }
+/* The assistant's waiting state. Opacity only — a moving highlight would be
+   the one piece of motion in the app that decorates rather than explains. */
+@keyframes shimmer {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
 
 @utility animate-rise-in {
   animation: riseIn 120ms ease-out;
@@ -264,6 +274,9 @@
 @utility animate-run-out {
   animation: runOut 4000ms linear forwards;
   transform-origin: left;
+}
+@utility animate-shimmer {
+  animation: shimmer 800ms ease-in-out infinite alternate;
 }
 
 /* Brief §7: kill everything except the playhead, which updates position

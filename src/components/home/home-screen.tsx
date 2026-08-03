@@ -1,5 +1,6 @@
 'use client'
 
+import { openAssistant } from '@/components/assistant/assistant-panel'
 import { providerCode, providerLabel } from '@/lib/meetings/schema'
 import { formatRange, formatTime, relativeToNow } from '@/lib/time'
 import { isTimeCritical, meetingState } from '@/components/calendar/encoding'
@@ -328,6 +329,21 @@ export function HomeScreen({
               </div>
             ))
           )}
+
+          <div className="mt-4 rounded-sm border border-rule border-l-2 border-l-signal p-3">
+            <div className="text-micro uppercase text-signal">Assistant</div>
+            <p className="mt-1.5 text-body">
+              Ask it to move, cancel, or find time. It shows you exactly what it will do
+              before anything is sent.
+            </p>
+            <button
+              type="button"
+              onClick={openAssistant}
+              className="mt-3 h-8 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal"
+            >
+              Open assistant
+            </button>
+          </div>
         </section>
       </div>
     </div>
