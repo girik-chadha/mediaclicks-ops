@@ -17,6 +17,7 @@ import type {
 } from '@/lib/assistant/plan'
 import { resolveDay, resolveRange, resolveWhen } from '@/lib/assistant/when'
 import { dayLabel, groupByDay, whenLabel } from '@/lib/assistant/format'
+import { matchParties } from '@/lib/assistant/match-parties'
 import { generatesLink } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
 import { formatRange } from '@/lib/time'
@@ -328,34 +329,41 @@ async function stageSchedule(
   const attendeeIds = new Set<string>([actor.id])
   let client: { id: string; companyName: string } | null = null
 
-  for (const name of intent.withNames) {
-    const needle = name.toLowerCase()
+  // Scanned against the real roster rather than split on separators.
+  //
+  // People write "emma girik lina and the client is al barsha motors" — four
+  // names divided by spaces, one name made of three words, and a clause in
+  // the middle. No separator rule survives that: splitting on "and" makes
+  // "emma girik lina" one person, splitting on spaces makes "Al Barsha
+  // Motors" three clients. Matching known names longest-first handles all of
+  // it, and has the side benefit of ignoring the filler between them.
+  const found = matchParties(intent.withNames.join(' '), clients, team)
 
-    const matchedClient = clients.filter((c) => c.companyName.toLowerCase().includes(needle))
-    if (matchedClient.length === 1) {
-      if (client && client.id !== matchedClient[0]!.id) {
-        return plain('A meeting can only have one client on it.')
-      }
-      client = matchedClient[0]!
-      continue
-    }
-    if (matchedClient.length > 1) {
-      return plain(
-        `${matchedClient.length} clients match “${name}”: ${matchedClient.map((c) => c.companyName).join(', ')}. Which one?`,
-      )
-    }
-
-    const person = await resolvePerson(actor, name)
-    if (!person.ok) {
-      return plain(
-        `I can't find a client or a teammate called “${name}”. ` +
-          (clients.length > 0
-            ? `Clients on file: ${clients.map((c) => c.companyName).join(', ')}.`
-            : 'There are no clients on file yet.'),
-      )
-    }
-    attendeeIds.add(person.person.id)
+  if (found.ambiguous) {
+    return plain(
+      `More than one person is called “${found.ambiguous.term}”: ` +
+        `${found.ambiguous.options.join(', ')}. Which one?`,
+    )
   }
+
+  if (found.clients.length > 1) {
+    return plain(
+      `A meeting can only have one client on it — you named ${found.clients.map((c) => c.companyName).join(' and ')}.`,
+    )
+  }
+
+  if (found.clients.length === 0 && found.people.length === 0) {
+    return plain(
+      `I couldn't match “${intent.withNames.join(' ')}” to anyone. ` +
+        (clients.length > 0
+          ? `Clients: ${clients.map((c) => c.companyName).join(', ')}. `
+          : '') +
+        `Team: ${team.map((p) => p.fullName.split(' ')[0]).join(', ')}.`,
+    )
+  }
+
+  client = found.clients[0] ?? null
+  for (const p of found.people) attendeeIds.add(p.id)
 
   // Platform. §4.1.1 offers three for a client meeting and never defaults,
   // because a WhatsApp call and a Zoom link reach the client differently.

@@ -435,10 +435,17 @@ describe('answering a question the assistant asked', () => {
     expect(answerProvider('dunno')).toBeNull()
   })
 
-  it('reads bare names', () => {
+  it('hands the whole phrase on rather than splitting it', () => {
+    // Splitting here was the bug: "emma girik lina and the client is al
+    // barsha motors" has four names divided by spaces and one client made of
+    // three words, and no separator rule gets both right. Matching against
+    // the real roster does — see match-parties.test.ts.
     expect(answerNames('priya')).toEqual(['priya'])
-    expect(answerNames('priya and arjun')).toEqual(['priya', 'arjun'])
-    expect(answerNames('with the miniz team')).toEqual(['miniz'])
+    expect(answerNames('priya and arjun')).toEqual(['priya and arjun'])
+    expect(answerNames('with emma lina and the client is al barsha motors')).toEqual([
+      'emma lina and the client is al barsha motors',
+    ])
+    expect(answerNames('  ')).toEqual([])
   })
 
   it('reads a pasted link and rejects anything else', () => {

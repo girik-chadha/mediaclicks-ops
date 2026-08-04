@@ -426,12 +426,18 @@ export function answerProvider(text: string): ScheduleIntent['provider'] | null 
   return key === 'none' ? 'none' : (PROVIDERS[key] ?? null)
 }
 
+/**
+ * Kept whole, deliberately.
+ *
+ * This used to split on "and" and commas and hand back a list of names. It
+ * cannot: "emma girik lina and the client is al barsha motors" has four
+ * people separated by spaces and one client made of three words, and no
+ * separator rule gets both right. The phrase now goes to the planner intact
+ * and is matched against the real roster there — see match-parties.ts.
+ */
 export function answerNames(text: string): string[] {
-  const cleaned = normalise(text).replace(/^\s*with\s+/, '')
-  return cleaned
-    .split(/\s+and\s+|,/)
-    .map(denoise)
-    .filter((n) => n.length >= 2)
+  const cleaned = normalise(text).replace(/^\s*with\s+/, '').trim()
+  return cleaned.length >= 2 ? [cleaned] : []
 }
 
 export function answerUrl(text: string): string | null {
