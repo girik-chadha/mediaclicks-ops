@@ -40,11 +40,18 @@ export function findFreeSlots(params: {
   durationMinutes: number
   busy: readonly Busy[]
   zone: string
-  /** Cap on results. The model does not need twenty options to pick from. */
+  /** Cap on results. Nobody needs twenty options to pick from. */
   limit?: number
+  /**
+   * Cap per day, so the answer spreads instead of listing 09:00, 09:30,
+   * 10:00, 10:30, 11:00 — five ways of saying "Monday morning is free",
+   * which answers a different question from the one that was asked.
+   */
+  maxPerDay?: number
 }): Slot[] {
   const { from, withinDays, durationMinutes, busy, zone } = params
   const limit = params.limit ?? 6
+  const maxPerDay = params.maxPerDay ?? Infinity
 
   if (durationMinutes <= 0 || withinDays <= 0) return []
 
@@ -55,10 +62,11 @@ export function findFreeSlots(params: {
     if (!isWorkingDay(dayStart, zone)) continue
 
     const { year, month, day } = toWallClock(dayStart, zone)
+    let onThisDay = 0
 
     for (
       let minute = WORK_START_MINUTE;
-      minute + durationMinutes <= WORK_END_MINUTE;
+      minute + durationMinutes <= WORK_END_MINUTE && onThisDay < maxPerDay;
       minute += STEP_MINUTES
     ) {
       const startsAt = fromWallClock(
@@ -76,6 +84,7 @@ export function findFreeSlots(params: {
       if (clash) continue
 
       found.push({ startsAt, endsAt })
+      onThisDay += 1
       if (found.length >= limit) return found
     }
   }

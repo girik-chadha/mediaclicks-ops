@@ -5,8 +5,8 @@ import {
   answerProvider,
   answerTime,
   answerUrl,
-  EXAMPLES,
   parse,
+  STARTERS,
 } from '@/lib/assistant/parse'
 
 /**
@@ -29,10 +29,10 @@ const refusal = (input: string) => {
   return r.reason
 }
 
-describe('every advertised example parses', () => {
+describe('every advertised starter parses', () => {
   // The panel offers these as buttons. One that does not parse is a button
   // that fails when clicked.
-  for (const example of EXAMPLES) {
+  for (const example of STARTERS) {
     it(`"${example}"`, () => {
       expect(parse(example).ok).toBe(true)
     })

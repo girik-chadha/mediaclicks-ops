@@ -71,14 +71,27 @@ export type ParseResult =
 
 /** Shown whenever the grammar does not match. Kept beside it so it cannot
  *  advertise something the parser stopped understanding. */
+/**
+ * Written generically on purpose. These are the panel's suggestion buttons
+ * and its list of what it can do, so naming a real client here taught the
+ * reader that the assistant only works on that client — and made the panel
+ * look broken the moment they typed a different name.
+ */
 export const EXAMPLES: readonly string[] = [
-  'Schedule a WhatsApp call with Miniz tomorrow at 3pm',
-  "What's on tomorrow?",
+  'Schedule a call with <name> tomorrow at 3pm',
+  "What's on this week?",
   'Find an hour next week for the team',
-  'Move the Miniz review to Thursday at 3pm',
+  'Move <meeting> to Thursday at 3pm',
   'Cancel my next client call',
-  'Swap Priya for Arjun on the Miniz review',
-  'Tell Priya the review moved to Thursday',
+  'Swap <name> for <name> on <meeting>',
+  'Tell <name> the review moved to Thursday',
+]
+
+/** The three offered as clickable buttons — real sentences, not templates. */
+export const STARTERS: readonly string[] = [
+  "What's on this week?",
+  'Find an hour next week for the team',
+  'Schedule a call tomorrow at 3pm',
 ]
 
 const NO_MATCH: ParseResult = {

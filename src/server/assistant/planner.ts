@@ -16,9 +16,10 @@ import type {
   StagedAction,
 } from '@/lib/assistant/plan'
 import { resolveDay, resolveRange, resolveWhen } from '@/lib/assistant/when'
+import { dayLabel, groupByDay, whenLabel } from '@/lib/assistant/format'
 import { generatesLink } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
-import { formatRange, formatTime } from '@/lib/time'
+import { formatRange } from '@/lib/time'
 import type { SessionActor } from '../auth/session'
 import {
   listClients,
@@ -195,11 +196,21 @@ async function answerList(
 
   if (meetings.length === 0) return plain(`Nothing scheduled ${when}.`)
 
-  const lines = meetings.map(
-    (m) =>
-      `· ${formatRange(m.startsAt, m.endsAt, actor.timezone)}  ${m.title}` +
-      (m.clientName ? ` — ${m.clientName}` : ''),
-  )
+  // Grouped by day, because "3 meetings this week" followed by three bare
+  // times is not an answer — it is the same information the question already
+  // contained, minus the part that mattered.
+  const byDay = groupByDay(meetings, actor.timezone, now)
+  const lines = byDay.flatMap(({ day }, i) => {
+    const onDay = meetings.filter((m) => dayLabel(m.startsAt, actor.timezone, now) === day)
+    return [
+      (i > 0 ? '\n' : '') + day.toUpperCase(),
+      ...onDay.map(
+        (m) =>
+          `  ${formatRange(m.startsAt, m.endsAt, actor.timezone)}  ${m.title}` +
+          (m.clientName ? ` — ${m.clientName}` : ''),
+      ),
+    ]
+  })
 
   return plain(
     `${meetings.length} meeting${meetings.length === 1 ? '' : 's'} ${when}.\n\n${lines.join('\n')}`,
@@ -370,7 +381,7 @@ async function stageSchedule(
 
   if (startsAt.getTime() < now.getTime()) {
     return plain(
-      `That lands in the past — ${formatRange(startsAt, endsAt, actor.timezone)}. Name a day as well as a time.`,
+      `That lands in the past — ${whenLabel(startsAt, endsAt, actor.timezone, now)}. Name a day as well as a time.`,
     )
   }
 
@@ -393,7 +404,7 @@ async function stageSchedule(
       provider,
       url: intent.url,
     }),
-    `${title} on ${formatRange(startsAt, endsAt, actor.timezone)}.` +
+    `${title} — ${whenLabel(startsAt, endsAt, actor.timezone, now)}.` +
       (client ? ` ${client.companyName} gets an email once you confirm.` : ''),
   )
 }
@@ -414,7 +425,7 @@ async function stageMove(
 
   if (startsAt.getTime() < now.getTime()) {
     return plain(
-      `That would put ${meeting.title} in the past — ${formatRange(startsAt, endsAt, actor.timezone)}. Name a day as well as a time.`,
+      `That would put ${meeting.title} in the past — ${whenLabel(startsAt, endsAt, actor.timezone, now)}. Name a day as well as a time.`,
     )
   }
 
@@ -424,7 +435,7 @@ async function stageMove(
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
     }),
-    `${meeting.title} moves to ${formatRange(startsAt, endsAt, actor.timezone)}. Everyone on it gets told once you confirm.`,
+    `${meeting.title} moves to ${whenLabel(startsAt, endsAt, actor.timezone, now)}. Everyone on it gets told once you confirm.`,
   )
 }
 
@@ -441,7 +452,7 @@ async function stageCancel(
       meeting_id: found.meeting.id,
       reason: intent.reason,
     }),
-    `${found.meeting.title} on ${formatTime(found.meeting.startsAt, actor.timezone)} would be cancelled, and its pending reminders dropped.`,
+    `${found.meeting.title} on ${whenLabel(found.meeting.startsAt, found.meeting.endsAt, actor.timezone, now)} would be cancelled, and its pending reminders dropped.`,
   )
 }
 
@@ -537,7 +548,7 @@ async function resolveRef(
     // the confirmation card would show a plausible-looking wrong answer.
     const options = matches
       .slice(0, 5)
-      .map((m) => `· ${m.title} — ${formatRange(m.startsAt, m.endsAt, actor.timezone)}`)
+      .map((m) => `· ${m.title} — ${whenLabel(m.startsAt, m.endsAt, actor.timezone, new Date())}`)
       .join('\n')
     return {
       ok: false,

@@ -6,7 +6,7 @@ import {
   confirmAssistant,
   type PlanLine,
 } from '@/app/(app)/assistant-actions'
-import { EXAMPLES } from '@/lib/assistant/parse'
+import { STARTERS } from '@/lib/assistant/parse'
 import type { PerformedAction } from '@/lib/assistant/plan'
 
 /**
@@ -39,7 +39,7 @@ type Phase = 'idle' | 'busy' | 'ready' | 'done' | 'answered' | 'asking'
  * Taken from the grammar rather than written here, so the panel cannot
  * advertise a phrasing the parser has stopped understanding.
  */
-const SUGGESTIONS = EXAMPLES.slice(0, 3)
+const SUGGESTIONS = STARTERS
 
 export function AssistantPanel() {
   const [open, setOpen] = useState(false)

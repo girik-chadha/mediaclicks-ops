@@ -2,9 +2,10 @@ import 'server-only'
 import { findFreeSlots } from '@/lib/assistant/free-slots'
 import type { StagedAction } from '@/lib/assistant/plan'
 import { toolSpec } from '@/lib/assistant/tools'
+import { whenLabel } from '@/lib/assistant/format'
 import { meetingInput } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
-import { formatRange, formatTime } from '@/lib/time'
+import { formatRange } from '@/lib/time'
 import type { SessionActor } from '../auth/session'
 import { requirePermission } from '../auth/require'
 import {
@@ -170,7 +171,7 @@ async function stageCreate(
       url: checked.data.conferenceUrl ?? '',
     },
     verb: 'Schedule',
-    what: `${checked.data.title} — ${formatRange(startsAt, endsAt, actor.timezone)}, with ${names}`,
+    what: `${checked.data.title} — ${whenLabel(startsAt, endsAt, actor.timezone, new Date())}, with ${names}`,
   })
 }
 
@@ -205,7 +206,7 @@ async function doListMeetings(
         [
           m.id,
           m.title,
-          formatRange(m.startsAt, m.endsAt, actor.timezone),
+          whenLabel(m.startsAt, m.endsAt, actor.timezone, new Date()),
           m.startsAt.toISOString(),
           m.clientName ? `client: ${m.clientName}` : 'internal',
           `with: ${m.attendees.map((a) => `${a.fullName} [${a.id}]`).join(', ')}`,
@@ -245,6 +246,11 @@ async function doFindFreeSlot(
     durationMinutes: duration,
     busy,
     zone: actor.timezone,
+    // Two per day, so six options span three days instead of being six
+    // ways of saying "Monday morning is free" — which answers a narrower
+    // question than the one that was asked.
+    maxPerDay: 2,
+    limit: 8,
   })
 
   const blind = seen.length !== all.length
@@ -292,7 +298,7 @@ async function stageReschedule(
       ends_at: endsAt.toISOString(),
     },
     verb: 'Move',
-    what: `${meeting.title} to ${formatRange(startsAt, endsAt, actor.timezone)}`,
+    what: `${meeting.title} to ${whenLabel(startsAt, endsAt, actor.timezone, new Date())}`,
   })
 }
 
@@ -313,7 +319,7 @@ async function stageCancel(
     input: { meeting_id: meeting.id, reason },
     verb: 'Cancel',
     what:
-      `${meeting.title}, ${formatTime(meeting.startsAt, actor.timezone)}` +
+      `${meeting.title}, ${whenLabel(meeting.startsAt, meeting.endsAt, actor.timezone, new Date())}` +
       (reason ? ` — ${reason}` : ''),
   })
 }
