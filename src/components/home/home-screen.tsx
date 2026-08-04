@@ -16,6 +16,12 @@ export interface ActivityDto {
   where: string
 }
 
+export interface ApprovalDto {
+  id: string
+  summary: string
+  requestedByName: string
+}
+
 export interface ClientWeekDto {
   id: string
   name: string
@@ -46,6 +52,7 @@ export function HomeScreen({
   zone,
   firstName,
   meId,
+  approvals,
 }: {
   meetings: MeetingDto[]
   activity: ActivityDto[]
@@ -53,6 +60,7 @@ export function HomeScreen({
   zone: string
   firstName: string
   meId: string
+  approvals: ApprovalDto[]
 }) {
   const now = useNow()
   const reference = now ?? new Date()
@@ -71,9 +79,12 @@ export function HomeScreen({
   const urgent = nextState ? isTimeCritical(nextState) : false
 
   /**
-   * "Needs you" — derived from the data, never invented. The design's demo
-   * items come from chat and approvals that do not exist yet; these are the
-   * two the schema can answer truthfully today.
+   * "Needs you" — derived from the data, never invented.
+   *
+   * Approvals lead it, because they are the only item where somebody else is
+   * blocked on this person rather than the other way round. They were the
+   * design's original example and the one thing the schema could not answer
+   * until ADR 0008 gave it a table.
    */
   const noLink = remaining.filter(
     (m) => m.conferencingProvider === 'whatsapp' || m.conferencingProvider === 'none',
@@ -83,6 +94,14 @@ export function HomeScreen({
   )
 
   const needs = [
+    // First, because it is the only item where somebody else is waiting on
+    // this person rather than the other way round.
+    ...approvals.map((a) => ({
+      kind: 'Approval',
+      what: `${a.requestedByName} wants to ${a.summary.toLowerCase()}`,
+      meta: 'In your chat',
+      border: '2px solid var(--signal)',
+    })),
     noLink.length > 0 && {
       kind: 'No link',
       what: `${noLink[0]!.title} has no link. You'll need to call.`,

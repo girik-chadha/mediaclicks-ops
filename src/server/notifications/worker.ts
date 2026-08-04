@@ -11,6 +11,7 @@ import {
   notifications,
   users,
 } from '../db/schema'
+import { sweepStaleApprovals } from '../assistant/sweep'
 import { mailIsConfigured, sendEmail } from '../mail'
 
 /**
@@ -32,6 +33,9 @@ export interface WorkerReport {
   digestsQueued: number
   sent: number
   failed: number
+  /** Approval requests retired because their meeting started or was
+   *  cancelled (ADR 0008). */
+  approvalsSwept: number
 }
 
 /** How far ahead to look. Comfortably beyond the longest lead time. */
@@ -277,5 +281,12 @@ export async function cancelPendingFor(meetingId: string): Promise<void> {
 export async function runNotifications(now = new Date()): Promise<WorkerReport> {
   const queued = await enqueueNotifications(now)
   const drained = await drainNotifications(now)
-  return { ...queued, ...drained }
+
+  // Runs in the same tick rather than on its own schedule: it is the same
+  // kind of work — retiring things the passage of time has made untrue —
+  // and a second cron entry would be a second thing to configure and
+  // forget.
+  const approvalsSwept = await sweepStaleApprovals(now)
+
+  return { ...queued, ...drained, approvalsSwept }
 }

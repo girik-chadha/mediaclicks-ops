@@ -6,6 +6,7 @@ import { getActor } from '@/server/auth/session'
 import { toMeetingDto, visibleTo } from '@/server/meetings/dto'
 import { listClientsThisWeek, listRecentActivity } from '@/server/home/queries'
 import { listMeetingsInRange } from '@/server/meetings/queries'
+import { listPendingFor } from '@/server/assistant/approvals'
 
 export default async function HomePage() {
   const actor = await getActor()
@@ -17,10 +18,14 @@ export default async function HomePage() {
   const weekStart = startOfWeek(new Date(), zone)
   const weekEnd = addDays(weekStart, 7, zone)
 
-  const [rows, activity, clientsWeek] = await Promise.all([
+  const [rows, activity, clientsWeek, approvals] = await Promise.all([
     listMeetingsInRange(actor, dayStart, dayEnd),
     listRecentActivity(actor, 6),
     listClientsThisWeek(actor, weekStart, weekEnd),
+    // "Needs you" is derived from real rows, never invented (§5). A pending
+    // approval is the most literal thing that could be in it: someone is
+    // blocked until this person answers.
+    listPendingFor(actor),
   ])
 
   const visible = visibleTo(actor, rows)
@@ -36,6 +41,11 @@ export default async function HomePage() {
           zone={zone}
           firstName={actor.fullName.split(' ')[0] ?? actor.fullName}
           meId={actor.id}
+          approvals={approvals.map((a) => ({
+            id: a.id,
+            summary: a.summary,
+            requestedByName: a.requestedByName,
+          }))}
         />
       </div>
     </div>
