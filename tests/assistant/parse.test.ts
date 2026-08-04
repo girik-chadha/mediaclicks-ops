@@ -259,3 +259,89 @@ describe('the boundary', () => {
     expect(r).not.toHaveProperty('intent')
   })
 })
+
+describe('scheduling something new', () => {
+  it('reads the request that started all this', () => {
+    // Verbatim from the user who found the gap. Politeness, a bare time, a
+    // client, and the platform buried mid-sentence.
+    expect(intent('can u schedule a meeting at 3pm with miniz it will be a whatsapp call')).toEqual({
+      kind: 'schedule',
+      withNames: ['miniz'],
+      when: { day: null, time: { hour: 15, minute: 0 } },
+      durationMinutes: 30,
+      provider: 'whatsapp',
+      title: '',
+      url: '',
+    })
+  })
+
+  it('strips politeness for every intent, not just this one', () => {
+    expect(intent('can you cancel my next client call')).toMatchObject({ kind: 'cancel' })
+    expect(intent('please move the review to friday')).toMatchObject({ kind: 'move' })
+    expect(intent("i'd like to know what's on tomorrow")).toMatchObject({ kind: 'list' })
+  })
+
+  it('accepts the openers people use', () => {
+    for (const opener of ['schedule', 'book', 'set up', 'arrange', 'create', 'make']) {
+      expect(intent(`${opener} a call with priya tomorrow at 3pm`)).toMatchObject({
+        kind: 'schedule',
+      })
+    }
+    expect(intent('new meeting with priya tomorrow at 3pm')).toMatchObject({ kind: 'schedule' })
+  })
+
+  it('reads several people', () => {
+    expect(intent('book 30 minutes with priya and arjun on friday at 2pm')).toMatchObject({
+      withNames: ['priya', 'arjun'],
+      durationMinutes: 30,
+    })
+  })
+
+  it('does not let slot debris into a name', () => {
+    // Removing "whatsapp" leaves "call"; removing "friday" leaves "on".
+    // Either one riding along stops the name matching anything.
+    expect(intent('schedule a whatsapp call with the miniz team tomorrow at 3pm')).toMatchObject({
+      withNames: ['miniz'],
+    })
+    expect(intent('book a call with arjun on friday at 2pm')).toMatchObject({
+      withNames: ['arjun'],
+    })
+  })
+
+  it('reads every platform, and none when unsaid', () => {
+    const at = 'with priya tomorrow at 3pm'
+    expect(intent(`schedule a whatsapp call ${at}`)).toMatchObject({ provider: 'whatsapp' })
+    expect(intent(`schedule a zoom ${at}`)).toMatchObject({ provider: 'zoom' })
+    expect(intent(`schedule a google meet ${at}`)).toMatchObject({ provider: 'google_meet' })
+    expect(intent(`schedule a call ${at}`)).toMatchObject({ provider: null })
+  })
+
+  it('keeps a pasted link', () => {
+    expect(intent('set up a zoom with miniz thursday at 11am https://zoom.us/j/123')).toMatchObject(
+      { provider: 'zoom', url: 'https://zoom.us/j/123' },
+    )
+  })
+
+  it('takes a title from "about", but never from "for"', () => {
+    expect(intent('book a call with priya tomorrow at 3pm about the campaign')).toMatchObject({
+      title: 'campaign',
+    })
+    // "for tomorrow at 3pm" is a time, not a title. Reading it as one would
+    // create a meeting literally called "tomorrow at 3pm with priya".
+    expect(intent('schedule a call for tomorrow at 3pm with priya')).toMatchObject({
+      title: '',
+      when: { day: { kind: 'tomorrow' }, time: { hour: 15, minute: 0 } },
+    })
+  })
+
+  it('defaults to half an hour', () => {
+    expect(intent('schedule a call with priya tomorrow at 3pm')).toMatchObject({
+      durationMinutes: 30,
+    })
+  })
+
+  it('asks rather than inventing the two things that matter', () => {
+    expect(refusal('schedule a call with miniz')).toMatch(/what time/i)
+    expect(refusal('schedule a meeting at 3pm')).toMatch(/who is the meeting with/i)
+  })
+})

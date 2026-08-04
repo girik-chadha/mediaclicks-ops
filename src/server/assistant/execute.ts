@@ -6,7 +6,7 @@ import { asAgent } from '../audit/agent-context'
 import { openDirectMessage, sendMessage } from '../chat/mutations'
 import { db } from '../db'
 import { auditLog } from '../db/schema'
-import { cancelMeeting, updateMeeting } from '../meetings/mutations'
+import { cancelMeeting, createMeeting, updateMeeting } from '../meetings/mutations'
 import { getMeeting, type MeetingRow } from '../meetings/queries'
 import { unseal } from './seal'
 
@@ -54,6 +54,23 @@ async function perform(actor: SessionActor, action: StagedAction): Promise<Perfo
           startsAt: new Date(action.input.starts_at!),
           endsAt: new Date(action.input.ends_at!),
         })
+        break
+      }
+
+      case 'create_meeting': {
+        const clientId = action.input.client_id || null
+        await createMeeting({
+          title: action.input.title!,
+          startsAt: new Date(action.input.starts_at!),
+          endsAt: new Date(action.input.ends_at!),
+          attendeeIds: action.input.attendee_ids!.split(','),
+          conferencingProvider: action.input
+            .provider as MeetingUpdateInput['conferencingProvider'],
+          ...(action.input.url ? { conferenceUrl: action.input.url } : {}),
+          ...(clientId
+            ? { type: 'client' as const, clientId }
+            : { type: 'internal' as const }),
+        } as Parameters<typeof createMeeting>[0])
         break
       }
 

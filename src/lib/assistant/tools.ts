@@ -28,8 +28,10 @@ import type { Action } from '@/lib/permissions'
 
 export const TOOL_NAMES = [
   'list_team',
+  'list_clients',
   'list_my_meetings',
   'find_free_slot',
+  'create_meeting',
   'reschedule_meeting',
   'cancel_meeting',
   'reassign_meeting',
@@ -53,8 +55,13 @@ export interface ToolSpec {
 
 export const TOOLS: readonly ToolSpec[] = [
   { name: 'list_team', effect: 'read', action: null },
+  { name: 'list_clients', effect: 'read', action: null },
   { name: 'list_my_meetings', effect: 'read', action: 'meeting.view' },
   { name: 'find_free_slot', effect: 'read', action: 'meeting.view' },
+  // meeting.create, not .edit: §4.1.1 makes adding anyone other than
+  // yourself require meeting.create.any, and the subject a create is judged
+  // against is the proposed attendee set rather than an existing row.
+  { name: 'create_meeting', effect: 'write', action: 'meeting.create' },
   { name: 'reschedule_meeting', effect: 'write', action: 'meeting.edit' },
   { name: 'cancel_meeting', effect: 'write', action: 'meeting.delete' },
   { name: 'reassign_meeting', effect: 'write', action: 'meeting.edit' },

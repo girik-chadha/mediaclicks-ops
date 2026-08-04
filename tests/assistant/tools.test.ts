@@ -66,6 +66,7 @@ const SUBJECTS: ReadonlyArray<{ label: string; subject: Subject }> = [
  */
 const NO_PERMISSION_NEEDED: Record<string, string> = {
   list_team: 'the team roster is visible to everyone in the org',
+  list_clients: 'the clients screen is in the nav for everyone; client.manage gates changing them, not seeing them',
   notify_user: 'anyone can send a colleague a direct message by clicking',
 }
 
@@ -94,6 +95,7 @@ describe('the tool catalogue', () => {
       (
         [
           'cancel_meeting',
+          'create_meeting',
           'notify_user',
           'reassign_meeting',
           'reschedule_meeting',

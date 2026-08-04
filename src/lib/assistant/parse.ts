@@ -8,6 +8,11 @@ import {
 } from './when'
 
 /**
+ * Normalisation strips most punctuation but keeps `:` and `/` so that
+ * "3:30pm" and a pasted URL survive to their own matchers.
+ */
+
+/**
  * The grammar (§4.6, without a model).
  *
  * Turns a sentence into an intent, or into an honest refusal. Pure: no
@@ -26,8 +31,24 @@ export type MeetingRef =
   /** A substring of the title — resolved against real meetings later. */
   | { readonly kind: 'title'; readonly text: string }
 
+/** As written in the sentence. Resolved against clients and team later. */
+export interface ScheduleIntent {
+  readonly kind: 'schedule'
+  /** Names after "with" — could be a client, could be teammates, could be both. */
+  readonly withNames: readonly string[]
+  readonly when: TimeExpr
+  readonly durationMinutes: number
+  /** Null when nothing was said; the planner asks rather than assuming. */
+  readonly provider: 'google_meet' | 'zoom' | 'whatsapp' | 'none' | null
+  /** From "about X" / "called X". Empty means derive one from who is on it. */
+  readonly title: string
+  /** A pasted join link, if the sentence carried one. */
+  readonly url: string
+}
+
 export type Intent =
   | { readonly kind: 'list'; readonly range: RangeSpec }
+  | ScheduleIntent
   | {
       readonly kind: 'free'
       readonly durationMinutes: number
@@ -51,6 +72,7 @@ export type ParseResult =
 /** Shown whenever the grammar does not match. Kept beside it so it cannot
  *  advertise something the parser stopped understanding. */
 export const EXAMPLES: readonly string[] = [
+  'Schedule a WhatsApp call with Miniz tomorrow at 3pm',
   "What's on tomorrow?",
   'Find an hour next week for the team',
   'Move the Miniz review to Thursday at 3pm',
@@ -83,14 +105,35 @@ export function parse(input: string): ParseResult {
  * real input for a reason nobody could see.
  */
 function normalise(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[‘’ʼ]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[?!,;]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/\.$/, '')
-    .trim()
+  return (
+    input
+      .toLowerCase()
+      .replace(/[‘’ʼ]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[?!,;]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\.$/, '')
+      .trim()
+      // Politeness, stripped once here rather than in seven matchers. People
+      // ask for things the way they ask people for things — "can u schedule
+      // …" is the normal case, not the exotic one, and every matcher anchors
+      // to the start of the string.
+      .replace(
+        new RegExp(
+          '^(?:hey |hi |ok(?:ay)? |so )?' +
+            '(?:' +
+            // "can you", "could u", "would we"
+            '(?:can|could|would|will)\\s+(?:you|u|we|i)\\s+(?:please\\s+)?' +
+            // "i'd like to", "i want to", "i need to" — note i'd has no
+            // space after the i, which an `i\s+` alternation misses.
+            "|i(?:'?d\\s+like|\\s+(?:want|need|would\\s+like))\\s+(?:you\\s+)?to\\s+" +
+            '|please\\s+|pls\\s+|let\'?s\\s+' +
+            ')',
+        ),
+        '',
+      )
+      .trim()
+  )
 }
 
 type Matcher = (text: string) => ParseResult | null
@@ -136,6 +179,11 @@ const notify: Matcher = (text) => {
     text,
   )
   if (!m) return null
+
+  // "tell me what's on tomorrow" is a question, not a message to a colleague
+  // called Me. Rejected here rather than in the executor so it falls through
+  // to the matchers below instead of dying as a self-DM.
+  if (/^(?:me|us|myself|everyone|everybody)$/.test(m[1]!)) return null
 
   const message = m[2]!.trim()
   if (message.length < 2) {
@@ -207,8 +255,10 @@ const free: Matcher = (text) => {
 
 /** "what's on tomorrow" · "show me this week" · "what have i got today" */
 const list: Matcher = (text) => {
+  // "know", "see" and "tell me" are here rather than stripped as politeness:
+  // stripping them would leave "this week", which opens nothing.
   const asks =
-    /^(?:what(?:'s|s| is| are)?\b|what\s+(?:have|do)\s+i\b|show\b|list\b|any(?:thing)?\b)/.test(
+    /^(?:what(?:'s|s| is| are)?\b|what\s+(?:have|do)\s+i\b|show\b|list\b|any(?:thing)?\b|know\b|see\b|check\b|find\s+out\b|tell\s+me\b)/.test(
       text,
     ) && /\b(?:on|got|have|meeting|meetings|schedule|calendar|today|tomorrow|week)\b/.test(text)
 
@@ -218,7 +268,120 @@ const list: Matcher = (text) => {
   return ok({ kind: 'list', range: parseRange(text) ?? 'today' })
 }
 
-const MATCHERS: readonly Matcher[] = [reassign, notify, cancel, move, free, list]
+/**
+ * "schedule a whatsapp call with miniz tomorrow at 3pm"
+ * "book 30 minutes with priya and arjun on friday about the campaign"
+ *
+ * Parsed subtractively rather than with one expression: each slot is taken
+ * out of the sentence and the remainder carries on to the next. A single
+ * regex would have to anticipate every ordering, and real sentences put the
+ * platform in the middle ("with miniz it will be a whatsapp call") as
+ * happily as at the end.
+ */
+const schedule: Matcher = (text) => {
+  const opener =
+    /^(?:please\s+)?(?:schedule|book|set\s+up|arrange|create|add|make)\s+(?:a|an|the)?\s*(?:new\s+)?(?:meeting|call|sync|catch\s*up|session|slot)?\s*/.exec(
+      text,
+    ) ?? /^new\s+meeting\s*/.exec(text)
+  if (!opener) return null
+
+  let rest = text.slice(opener[0].length).trim()
+
+  // 1. A pasted link, before punctuation-stripping can maul it.
+  let url = ''
+  const link = /\bhttps?:\/\/\S+/.exec(rest)
+  if (link) {
+    url = link[0]
+    rest = strip(rest, link)
+  }
+
+  // 2. Platform. Taken early because "whatsapp call" would otherwise be
+  //    read as part of whoever the meeting is with.
+  let provider: ScheduleIntent['provider'] = null
+  const platform =
+    /\b(whats\s?app|google\s*meet|meet|zoom|no\s+platform|no\s+link|in\s+person|phone)\b/.exec(rest)
+  if (platform) {
+    provider = PROVIDERS[platform[1]!.replace(/\s+/g, ' ')] ?? null
+    if (provider) rest = strip(rest, platform)
+  }
+
+  // 3. Filler the platform clause leaves behind: "it will be a", "on".
+  rest = rest
+    .replace(/\b(?:it\s+(?:will|'?ll)\s+be|its|it's|this\s+is|that\s+is)\s+(?:a|an|on)?\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  // 4. Title, if named outright. Deliberately not "for": "schedule a call
+  //    for tomorrow at 3pm" would title the meeting "tomorrow at 3pm".
+  let title = ''
+  const about = /\b(?:about|called|titled|regarding)\s+(.+)$/.exec(rest)
+  if (about) {
+    title = clean(about[1]!)
+    rest = rest.slice(0, about.index).trim()
+  }
+
+  // 5. Duration, before the time — "30 minutes" must not become 00:30.
+  const durationMinutes = parseDuration(rest) ?? 30
+  const dur = /\b(?:for\s+)?(?:half\s+an?\s+hour|an?\s+hour|\d{1,3}\s*(?:h|hr|hrs|hour|hours|m|min|mins|minute|minutes))\b/.exec(
+    rest,
+  )
+  if (dur) rest = strip(rest, dur)
+
+  // 6. When.
+  const day = takeDay(rest)
+  if (day) rest = day.rest
+  const time = takeTimeOfDay(rest)
+  if (time) rest = time.rest
+
+  if (!time) {
+    return {
+      ok: false,
+      reason:
+        'What time? A new meeting needs one — try "tomorrow at 3pm" or "Friday at 10am".',
+    }
+  }
+
+  // 7. Whatever "with" introduced is who it is with.
+  const withNames: string[] = []
+  const withClause = /\bwith\s+(.+)$/.exec(rest)
+  if (withClause) {
+    for (const part of withClause[1]!.split(/\s+and\s+|,/)) {
+      const name = denoise(part)
+      if (name.length >= 2) withNames.push(name)
+    }
+  }
+
+  if (withNames.length === 0) {
+    return { ok: false, reason: 'Who is the meeting with? Name a client or a teammate.' }
+  }
+
+  return ok({
+    kind: 'schedule',
+    withNames,
+    when: { day: day?.day ?? null, time: time.time },
+    durationMinutes,
+    provider,
+    title,
+    url,
+  })
+}
+
+const PROVIDERS: Record<string, ScheduleIntent['provider']> = {
+  whatsapp: 'whatsapp',
+  'whats app': 'whatsapp',
+  zoom: 'zoom',
+  meet: 'google_meet',
+  'google meet': 'google_meet',
+  'no platform': 'none',
+  'no link': 'none',
+  'in person': 'none',
+  phone: 'none',
+}
+
+const strip = (text: string, m: RegExpExecArray) =>
+  (text.slice(0, m.index) + ' ' + text.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim()
+
+const MATCHERS: readonly Matcher[] = [schedule, reassign, notify, cancel, move, free, list]
 
 /* ── Shared pieces ────────────────────────────────────────────────────── */
 
@@ -272,3 +435,20 @@ const clean = (text: string) =>
     .replace(/^\s*(?:the|my|our|please)\s+/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+
+/**
+ * Strips the words that describe a meeting from the words that name a
+ * person or a client.
+ *
+ * Taking slots out of the sentence one at a time leaves debris: removing
+ * "whatsapp" from "with miniz it will be a whatsapp call" leaves "call",
+ * and removing "friday" from "with arjun on friday" leaves "on". Both then
+ * ride along into a name and stop it matching anything. Whole words only,
+ * and the resolver matches on substrings, so a client genuinely called
+ * "On Point Media" still resolves from "point media".
+ */
+const NAME_NOISE =
+  /\b(?:the|a|an|team|call|meeting|sync|session|chat|catch\s*up|on|at|in|for|to|with|and|next|this|guys|folks)\b/g
+
+const denoise = (text: string) =>
+  clean(text).replace(NAME_NOISE, ' ').replace(/\s+/g, ' ').trim()

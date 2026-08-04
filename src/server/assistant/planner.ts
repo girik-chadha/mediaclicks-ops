@@ -2,10 +2,16 @@ import 'server-only'
 import { EXAMPLES, parse, type Intent, type MeetingRef } from '@/lib/assistant/parse'
 import type { AssistantReply, StagedAction } from '@/lib/assistant/plan'
 import { resolveRange, resolveWhen } from '@/lib/assistant/when'
+import { generatesLink } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
 import { formatRange, formatTime } from '@/lib/time'
 import type { SessionActor } from '../auth/session'
-import { listMeetingsInRange, listTeam, type MeetingRow } from '../meetings/queries'
+import {
+  listClients,
+  listMeetingsInRange,
+  listTeam,
+  type MeetingRow,
+} from '../meetings/queries'
 import { runTool } from './tools'
 
 /**
@@ -43,6 +49,8 @@ export async function planFromPrompt(
   const now = new Date()
 
   switch (parsed.intent.kind) {
+    case 'schedule':
+      return await stageSchedule(actor, parsed.intent, now)
     case 'list':
       return await answerList(actor, parsed.intent, now)
     case 'free':
@@ -137,6 +145,110 @@ async function answerFree(
 }
 
 /* ── Staging ──────────────────────────────────────────────────────────── */
+
+/**
+ * Booking something new (§4.1.1).
+ *
+ * The one intent that asks questions back. A move or a cancel names a
+ * meeting that already exists, so everything about it is known; a create
+ * has to invent the whole row, and the two fields nobody says out loud —
+ * which platform, and the join link for the ones that need one — are
+ * exactly the two that make the meeting useless if guessed. So they are
+ * asked for, not defaulted.
+ */
+async function stageSchedule(
+  actor: SessionActor,
+  intent: Extract<Intent, { kind: 'schedule' }>,
+  now: Date,
+): Promise<AssistantReply> {
+  const clients = await listClients(actor)
+  const team = await listTeam(actor)
+
+  const attendeeIds = new Set<string>([actor.id])
+  let client: { id: string; companyName: string } | null = null
+
+  for (const name of intent.withNames) {
+    const needle = name.toLowerCase()
+
+    const matchedClient = clients.filter((c) => c.companyName.toLowerCase().includes(needle))
+    if (matchedClient.length === 1) {
+      if (client && client.id !== matchedClient[0]!.id) {
+        return plain('A meeting can only have one client on it.')
+      }
+      client = matchedClient[0]!
+      continue
+    }
+    if (matchedClient.length > 1) {
+      return plain(
+        `${matchedClient.length} clients match “${name}”: ${matchedClient.map((c) => c.companyName).join(', ')}. Which one?`,
+      )
+    }
+
+    const person = await resolvePerson(actor, name)
+    if (!person.ok) {
+      return plain(
+        `I can't find a client or a teammate called “${name}”. ` +
+          (clients.length > 0
+            ? `Clients on file: ${clients.map((c) => c.companyName).join(', ')}.`
+            : 'There are no clients on file yet.'),
+      )
+    }
+    attendeeIds.add(person.person.id)
+  }
+
+  // Platform. §4.1.1 offers three for a client meeting and never defaults,
+  // because a WhatsApp call and a Zoom link reach the client differently.
+  let provider = intent.provider
+  if (!provider) {
+    if (client) {
+      return plain(
+        `Which platform for the ${client.companyName} call — WhatsApp, Google Meet, or Zoom? ` +
+          'Say it and I\'ll set it up.',
+      )
+    }
+    provider = 'none'
+  }
+
+  // Meet and Zoom are link-based and nothing here generates one (§4.2).
+  if (generatesLink(provider) && !intent.url) {
+    return plain(
+      `Create the ${provider === 'zoom' ? 'Zoom' : 'Google Meet'} yourself and paste the link into the message — ` +
+        'nothing here can make one, and a calendar entry with no way to join is worse than none.',
+    )
+  }
+
+  const startsAt = resolveWhen(intent.when, now, now, actor.timezone)
+  const endsAt = new Date(startsAt.getTime() + intent.durationMinutes * 60_000)
+
+  if (startsAt.getTime() < now.getTime()) {
+    return plain(
+      `That lands in the past — ${formatRange(startsAt, endsAt, actor.timezone)}. Name a day as well as a time.`,
+    )
+  }
+
+  const title =
+    intent.title ||
+    (client
+      ? `${client.companyName} call`
+      : `Call with ${[...attendeeIds]
+          .filter((id) => id !== actor.id)
+          .map((id) => team.find((p) => p.id === id)?.fullName?.split(' ')[0] ?? 'the team')
+          .join(', ')}`)
+
+  return stage(
+    await runTool(actor, 'create_meeting', {
+      title,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      attendee_ids: [...attendeeIds],
+      client_id: client?.id ?? '',
+      provider,
+      url: intent.url,
+    }),
+    `${title} on ${formatRange(startsAt, endsAt, actor.timezone)}.` +
+      (client ? ` ${client.companyName} gets an email once you confirm.` : ''),
+  )
+}
 
 async function stageMove(
   actor: SessionActor,

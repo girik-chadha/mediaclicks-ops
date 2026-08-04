@@ -169,3 +169,29 @@ door.
 `planFromPrompt` is the only thing to reimplement, and the grammar makes a
 reasonable fast path in front of one: parse first, fall through to a model
 only on a refusal. Nothing else would move.
+
+---
+
+## Amendment, 2026-08-03 (later) — `create_meeting`
+
+§4.6's toolset listed seven tools and booking was not among them. That was
+taken at face value and it was wrong: "schedule a meeting at 3pm with X on
+WhatsApp" is the first thing anyone asks a scheduling assistant, and the
+assistant could not do it. Worth noting the diagnosis, because it was
+initially misread as a limit of the grammar — it was not. The model-backed
+planner would have failed the same request, because a planner can only call
+tools that exist.
+
+`create_meeting` follows the same rules as the rest: staged not executed,
+`meeting.create` checked through `requirePermission`, validated with the
+same zod schema the modal submits so a rule added there applies here for
+free. Its subject is the *proposed attendee set* rather than an existing
+row, which is what makes `meeting.create.own` mean "book your own time and
+nobody else's" through the assistant exactly as it does through the form.
+
+It is the only intent that asks questions back. A move or a cancel names a
+meeting that already exists, so everything about it is known. A create
+invents the whole row, and the two fields nobody says out loud — which
+platform, and the join link for the platforms that need one — are precisely
+the two that make the meeting useless if guessed. So the assistant asks.
+Nothing generates a Meet or Zoom link (§4.2); it says so and asks for one.

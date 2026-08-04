@@ -2,11 +2,13 @@ import 'server-only'
 import { findFreeSlots } from '@/lib/assistant/free-slots'
 import type { StagedAction } from '@/lib/assistant/plan'
 import { toolSpec } from '@/lib/assistant/tools'
+import { meetingInput } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
 import { formatRange, formatTime } from '@/lib/time'
 import type { SessionActor } from '../auth/session'
 import { requirePermission } from '../auth/require'
 import {
+  listClients,
   listMeetingsInRange,
   listTeam,
   listVisibleMeetings,
@@ -55,6 +57,10 @@ export async function runTool(
     switch (spec.name) {
       case 'list_team':
         return await doListTeam(actor)
+      case 'list_clients':
+        return await doListClients(actor)
+      case 'create_meeting':
+        return await stageCreate(actor, input)
       case 'list_my_meetings':
         return await doListMeetings(actor, input)
       case 'find_free_slot':
@@ -90,6 +96,82 @@ async function doListTeam(actor: SessionActor): Promise<ToolOutcome> {
       .map((p) => `${p.id}  ${p.fullName}${p.id === actor.id ? ' (this is you)' : ''}`)
       .join('\n'),
   }
+}
+
+async function doListClients(actor: SessionActor): Promise<ToolOutcome> {
+  const rows = await listClients(actor)
+  if (rows.length === 0) return { content: 'No clients on file yet.' }
+  return { content: rows.map((c) => `${c.id}  ${c.companyName}`).join('\n') }
+}
+
+/**
+ * Stages a new meeting (§4.1.1).
+ *
+ * The only write tool whose subject is not an existing row: at creation the
+ * thing being judged is the *proposed attendee set*, which is exactly what
+ * OWNS['meeting.create'] inspects. Someone with only meeting.create.own can
+ * therefore book their own time and nobody else's, through the assistant
+ * for the same reason they can through the form.
+ *
+ * Validated with the same zod schema the modal submits, so a rule added
+ * there — a new provider, a length cap — applies here without anyone
+ * remembering to mirror it.
+ */
+async function stageCreate(
+  actor: SessionActor,
+  input: Record<string, unknown>,
+): Promise<ToolOutcome> {
+  const attendeeIds = parseIds(input.attendee_ids)
+  if (attendeeIds.length === 0) return fail('A meeting needs at least one attendee.')
+
+  const startsAt = parseDate(input.starts_at)
+  const endsAt = parseDate(input.ends_at)
+  if (!startsAt || !endsAt) return fail('starts_at and ends_at must be ISO 8601 timestamps.')
+
+  const clientId = typeof input.client_id === 'string' && input.client_id ? input.client_id : null
+
+  const candidate = {
+    title: String(input.title ?? '').trim(),
+    startsAt,
+    endsAt,
+    attendeeIds,
+    conferencingProvider: String(input.provider ?? 'none'),
+    ...(input.url ? { conferenceUrl: String(input.url) } : {}),
+    ...(clientId ? { type: 'client' as const, clientId } : { type: 'internal' as const }),
+  }
+
+  const checked = meetingInput.safeParse(candidate)
+  if (!checked.success) {
+    // zod's message is already written for a person — it is the same text
+    // the form shows under the field.
+    return fail(checked.error.issues[0]?.message ?? 'That meeting is not valid.')
+  }
+
+  await requirePermission('meeting.create', {
+    orgId: actor.orgId,
+    createdByUserId: actor.id,
+    attendeeIds,
+  })
+
+  const team = await listTeam(actor)
+  const names = attendeeIds
+    .map((id) => team.find((p) => p.id === id)?.fullName ?? 'someone')
+    .join(', ')
+
+  return staged({
+    tool: 'create_meeting',
+    input: {
+      title: checked.data.title,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      attendee_ids: attendeeIds.join(','),
+      client_id: clientId ?? '',
+      provider: checked.data.conferencingProvider,
+      url: checked.data.conferenceUrl ?? '',
+    },
+    verb: 'Schedule',
+    what: `${checked.data.title} — ${formatRange(startsAt, endsAt, actor.timezone)}, with ${names}`,
+  })
 }
 
 function visible(actor: SessionActor) {
