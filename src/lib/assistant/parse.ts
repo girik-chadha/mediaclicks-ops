@@ -1,6 +1,7 @@
 import {
   parseDuration,
   parseRange,
+  parseRanges,
   takeDay,
   takeTimeOfDay,
   type RangeSpec,
@@ -47,7 +48,7 @@ export interface ScheduleIntent {
 }
 
 export type Intent =
-  | { readonly kind: 'list'; readonly range: RangeSpec }
+  | { readonly kind: 'list'; readonly ranges: readonly RangeSpec[] }
   | ScheduleIntent
   | {
       readonly kind: 'free'
@@ -155,7 +156,7 @@ type Matcher = (text: string) => ParseResult | null
 
 /** "swap priya for arjun on the miniz review" · "put arjun on x instead of priya" */
 const reassign: Matcher = (text) => {
-  const swap = /^(?:please\s+)?(?:swap|replace)\s+(.+?)\s+(?:for|with)\s+(.+?)\s+(?:on|in|for)\s+(.+)$/.exec(
+  const swap = /\b(?:swap|replace)\s+(.+?)\s+(?:for|with)\s+(.+?)\s+(?:on|in|for)\s+(.+)$/.exec(
     text,
   )
   if (swap) {
@@ -169,7 +170,7 @@ const reassign: Matcher = (text) => {
     })
   }
 
-  const instead = /^(?:please\s+)?(?:put|send|add)\s+(.+?)\s+(?:on|to)\s+(.+?)\s+instead\s+of\s+(.+)$/.exec(
+  const instead = /\b(?:put|send|add)\s+(.+?)\s+(?:on|to)\s+(.+?)\s+instead\s+of\s+(.+)$/.exec(
     text,
   )
   if (instead) {
@@ -188,7 +189,7 @@ const reassign: Matcher = (text) => {
 
 /** "tell priya the review moved" · "message arjun about friday" */
 const notify: Matcher = (text) => {
-  const m = /^(?:please\s+)?(?:tell|message|dm|ping|let)\s+([a-z][a-z'-]*)\s+(?:know\s+)?(.+)$/.exec(
+  const m = /\b(?:tell|message|dm|ping|let)\s+([a-z][a-z'-]*)\s+(?:know\s+)?(.+)$/.exec(
     text,
   )
   if (!m) return null
@@ -208,7 +209,7 @@ const notify: Matcher = (text) => {
 
 /** "cancel my next client call" · "cancel the miniz review because they rescheduled" */
 const cancel: Matcher = (text) => {
-  const m = /^(?:please\s+)?(?:cancel|call\s+off|drop|scrap)\s+(.+)$/.exec(text)
+  const m = /\b(?:cancel|call\s+off|drop|scrap)\s+(.+)$/.exec(text)
   if (!m) return null
 
   let rest = m[1]!
@@ -228,7 +229,7 @@ const cancel: Matcher = (text) => {
 
 /** "move the miniz review to thursday at 3pm" · "push my next meeting to 4" */
 const move: Matcher = (text) => {
-  const m = /^(?:please\s+)?(?:move|reschedule|shift|push|bump|change)\s+(.+?)\s+to\s+(.+)$/.exec(
+  const m = /\b(?:move|reschedule|shift|push|bump|change)\s+(.+?)\s+to\s+(.+)$/.exec(
     text,
   )
   if (!m) return null
@@ -266,19 +267,45 @@ const free: Matcher = (text) => {
   return ok({ kind: 'free', durationMinutes, range: parseRange(text), withWholeTeam })
 }
 
-/** "what's on tomorrow" · "show me this week" · "what have i got today" */
+/**
+ * "what's on tomorrow" · "give me a rundown of the meetings today and
+ * tomorrow" · "whats my week looking like"
+ *
+ * The last matcher, and the loosest, because it is the only one with no side
+ * effect: reading the schedule back is safe to be wrong about in a way that
+ * cancelling a meeting is not. It looks for two signals anywhere in the
+ * sentence rather than a keyword at position zero — anchoring meant "what's
+ * on today" worked and "give me a rundown of today" did not, which is not a
+ * distinction anybody asking would recognise.
+ */
 const list: Matcher = (text) => {
-  // "know", "see" and "tell me" are here rather than stripped as politeness:
-  // stripping them would leave "this week", which opens nothing.
-  const asks =
-    /^(?:what(?:'s|s| is| are)?\b|what\s+(?:have|do)\s+i\b|show\b|list\b|any(?:thing)?\b|know\b|see\b|check\b|find\s+out\b|tell\s+me\b)/.test(
-      text,
-    ) && /\b(?:on|got|have|meeting|meetings|schedule|calendar|today|tomorrow|week)\b/.test(text)
+  // Questions that are about the calendar but are not requests to see it.
+  // "Who is busiest this week" mentions a week and means something the
+  // assistant cannot work out; answering with a list of meetings would be
+  // answering a different question and looking confident about it.
+  if (/^(?:who|why|how\s+(?:many|much|long|often)|which\s+(?:person|one))\b/.test(text)) {
+    return null
+  }
 
-  if (!asks) return null
+  const asking =
+    /\b(?:what|whats|show|list|give|see|check|know|find\s+out|tell\s+me|remind\s+me|any|anything|got|have|has|rundown|overview|summary|agenda|diary|looking\s+like|look\s+like|coming\s+up|lined\s+up)\b/.test(
+      text,
+    )
+
+  const aboutSchedule =
+    /\b(?:meeting|meetings|schedule|calendar|rundown|agenda|diary|booked|day|week|on)\b/.test(text)
+
+  const ranges = parseRanges(text)
+
+  // A noun and a window together are a request even with no question word —
+  // "meetings today and tomorrow" is a perfectly clear thing to type. With
+  // only one of the two, something has to be doing the asking.
+  const named = aboutSchedule && ranges.length > 0
+  if (!named && !asking) return null
+  if (!named && !aboutSchedule && ranges.length === 0) return null
 
   // No range named ("what's on?") means the day in front of them.
-  return ok({ kind: 'list', range: parseRange(text) ?? 'today' })
+  return ok({ kind: 'list', ranges: ranges.length > 0 ? ranges : ['today'] })
 }
 
 /**
@@ -292,13 +319,17 @@ const list: Matcher = (text) => {
  * happily as at the end.
  */
 const schedule: Matcher = (text) => {
+  // "schedule" and "book" are also nouns, and "tell me my schedule for
+  // tomorrow" is a question about the calendar, not an instruction to fill
+  // it. A determiner in front makes it a noun; nothing else distinguishes
+  // the two, so that is what the lookbehind checks.
   const opener =
-    /^(?:please\s+)?(?:schedule|book|set\s+up|arrange|create|add|make)\s+(?:a|an|the)?\s*(?:new\s+)?(?:meeting|call|sync|catch\s*up|session|slot)?\s*/.exec(
+    /(?<!\b(?:my|your|our|their|his|her|the|a|this)\s)\b(?:schedule|book|set\s+up|arrange|organise|organize)\s+(?:a|an|the)?\s*(?:new\s+)?(?:meeting|call|sync|catch\s*up|session|slot)?\s*/.exec(
       text,
-    ) ?? /^new\s+meeting\s*/.exec(text)
+    ) ?? /\bnew\s+meeting\s*/.exec(text)
   if (!opener) return null
 
-  let rest = text.slice(opener[0].length).trim()
+  let rest = text.slice(opener.index + opener[0].length).trim()
 
   // 1. A pasted link, before punctuation-stripping can maul it.
   let url = ''

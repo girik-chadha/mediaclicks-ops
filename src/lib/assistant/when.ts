@@ -161,11 +161,31 @@ export function parseDuration(text: string): number | null {
 }
 
 export function parseRange(text: string): RangeSpec | null {
-  if (/\bnext\s+week\b/.test(text)) return 'next-week'
-  if (/\bthis\s+week\b|\bthe\s+week\b|\brest\s+of\s+the\s+week\b/.test(text)) return 'this-week'
-  if (/\btomorrow\b/.test(text)) return 'tomorrow'
-  if (/\btoday\b|\bthis\s+(?:morning|afternoon|evening)\b/.test(text)) return 'today'
-  return null
+  return parseRanges(text)[0] ?? null
+}
+
+/**
+ * Every range named in the sentence, not just the first.
+ *
+ * "the meetings today and tomorrow" names two, and answering only the first
+ * drops half of what was asked for — the kind of wrong that looks like a
+ * right answer. The caller unions them.
+ */
+export function parseRanges(text: string): RangeSpec[] {
+  const found: RangeSpec[] = []
+  const add = (r: RangeSpec) => {
+    if (!found.includes(r)) found.push(r)
+  }
+
+  if (/\bnext\s+week\b/.test(text)) add('next-week')
+  if (/\bthis\s+week\b|\bthe\s+week\b|\brest\s+of\s+the\s+week\b/.test(text)) add('this-week')
+  if (/\btomorrow\b/.test(text)) add('tomorrow')
+  if (/\btoday\b|\bthis\s+(?:morning|afternoon|evening)\b/.test(text)) add('today')
+
+  // Chronological, so a union spans the right window regardless of the order
+  // the person happened to say them in.
+  const ORDER: RangeSpec[] = ['today', 'tomorrow', 'this-week', 'next-week']
+  return found.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))
 }
 
 const cut = (text: string, m: RegExpExecArray) =>

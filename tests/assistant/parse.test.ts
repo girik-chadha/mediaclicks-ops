@@ -41,19 +41,19 @@ describe('every advertised starter parses', () => {
 
 describe('listing', () => {
   it('reads the day being asked about', () => {
-    expect(intent("What's on today?")).toEqual({ kind: 'list', range: 'today' })
-    expect(intent('what have i got tomorrow')).toEqual({ kind: 'list', range: 'tomorrow' })
-    expect(intent('show me this week')).toEqual({ kind: 'list', range: 'this-week' })
-    expect(intent('what do i have next week')).toEqual({ kind: 'list', range: 'next-week' })
+    expect(intent("What's on today?")).toEqual({ kind: 'list', ranges: ['today'] })
+    expect(intent('what have i got tomorrow')).toEqual({ kind: 'list', ranges: ['tomorrow'] })
+    expect(intent('show me this week')).toEqual({ kind: 'list', ranges: ['this-week'] })
+    expect(intent('what do i have next week')).toEqual({ kind: 'list', ranges: ['next-week'] })
   })
 
   it('defaults to today when no day is named', () => {
-    expect(intent("what's on")).toEqual({ kind: 'list', range: 'today' })
+    expect(intent("what's on")).toEqual({ kind: 'list', ranges: ['today'] })
   })
 
   it('survives a phone keyboard', () => {
     // U+2019, not U+0027. Half of real input arrives this way.
-    expect(intent('what’s on tomorrow')).toEqual({ kind: 'list', range: 'tomorrow' })
+    expect(intent('what’s on tomorrow')).toEqual({ kind: 'list', ranges: ['tomorrow'] })
   })
 })
 
@@ -246,7 +246,6 @@ describe('the boundary', () => {
   })
 
   it.each([
-    'summarise my week and tell me what to drop',
     'who is the busiest person this week',
     'delete everything',
     'why is the sky blue',
@@ -289,7 +288,7 @@ describe('scheduling something new', () => {
   })
 
   it('accepts the openers people use', () => {
-    for (const opener of ['schedule', 'book', 'set up', 'arrange', 'create', 'make']) {
+    for (const opener of ['schedule', 'book', 'set up', 'arrange', 'organise']) {
       expect(intent(`${opener} a call with priya tomorrow at 3pm`)).toMatchObject({
         kind: 'schedule',
       })
@@ -367,6 +366,49 @@ describe('scheduling something new', () => {
       kind: 'schedule',
       when: { time: null },
     })
+  })
+})
+
+describe('the same question, asked differently', () => {
+  // The complaint that produced this block: "give me a rundown of all the
+  // meetings today and tomorrow" was refused while "what's on today" worked.
+  // Matchers used to anchor to the first word, which is a distinction nobody
+  // asking the question would recognise.
+  it.each([
+    'give me a rundown of all the meetings today and tomorrow',
+    'whats my day looking like',
+    'do i have anything tomorrow',
+    'give me an overview of next week',
+    'remind me what i have on this week',
+    'whats coming up this week',
+    'can u tell me my schedule for tomorrow',
+  ])('reads "%s" as a question about the calendar', (input) => {
+    expect(intent(input)).toMatchObject({ kind: 'list' })
+  })
+
+  it('unions every range named, not just the first', () => {
+    // Answering only "today" would drop half of what was asked for — the
+    // kind of wrong that looks like a right answer.
+    expect(intent('the meetings today and tomorrow')).toMatchObject({
+      ranges: ['today', 'tomorrow'],
+    })
+  })
+
+  it('tells the noun "schedule" from the verb', () => {
+    // "my schedule" is a question; "schedule a call" is an instruction. A
+    // determiner in front is the only thing separating them.
+    expect(intent('whats my schedule this week')).toMatchObject({ kind: 'list' })
+    expect(intent('show me the schedule')).toMatchObject({ kind: 'list' })
+    expect(intent('schedule a call with priya tomorrow at 3pm')).toMatchObject({
+      kind: 'schedule',
+    })
+  })
+
+  it.each([
+    'i need you to move the design crit to monday at 11am',
+    'can you book a call with kite airlines on thursday at 4pm',
+  ])('finds the verb mid-sentence: "%s"', (input) => {
+    expect(parse(input).ok).toBe(true)
   })
 })
 

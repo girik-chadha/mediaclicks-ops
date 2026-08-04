@@ -190,10 +190,16 @@ async function answerList(
   intent: Extract<Intent, { kind: 'list' }>,
   now: Date,
 ): Promise<AssistantReply> {
-  const { from, to } = resolveRange(intent.range, now, actor.timezone)
+  // A sentence can name more than one window — "today and tomorrow" — so the
+  // ranges are unioned into the span they cover rather than the first one
+  // winning and the rest being silently dropped.
+  const spans = intent.ranges.map((r) => resolveRange(r, now, actor.timezone))
+  const from = new Date(Math.min(...spans.map((s) => s.from.getTime())))
+  const to = new Date(Math.max(...spans.map((s) => s.to.getTime())))
+
   const meetings = (await visibleBetween(actor, from, to)).filter((m) => m.status !== 'cancelled')
 
-  const when = RANGE_WORDS[intent.range]
+  const when = intent.ranges.map((r) => RANGE_WORDS[r]).join(' and ')
 
   if (meetings.length === 0) return plain(`Nothing scheduled ${when}.`)
 
