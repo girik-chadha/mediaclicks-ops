@@ -32,6 +32,15 @@ called at runtime, by anything. The assistant's planner is a grammar
 (`src/lib/assistant/parse.ts`), not a model. If you extend it, extend the
 grammar and its tests — do not reach for an SDK.
 
+**Stop `next dev` before deleting a file or removing a package.** Next's dev
+compiler caches the module graph and does not recover from a deleted import:
+it keeps reporting `Failed to read source code from <deleted file>` and the
+route that imported it fails to compile, silently, for the rest of the
+session. Tests and `tsc` stay green throughout, so the only symptom is the
+running app. This has cost two debugging sessions. The recovery is
+`rm -rf .next` and a restart — but stopping first is cheaper. Same rule as
+running a build: dev holds `.next`, so nothing else may touch it.
+
 Meeting intelligence (§4.5) is deferred indefinitely. Its tables
 (`meeting_transcripts`, `meeting_summaries`) and the `recording_consent_given`
 flag exist in the schema deliberately and must not be removed — retrofitting
