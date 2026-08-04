@@ -42,6 +42,7 @@ export default async function ChatPage({
         body: m.body,
         createdAt: m.createdAt.toISOString(),
         mine: m.mine,
+        ...(m.approval ? { approval: m.approval } : {}),
       }))
     : []
 

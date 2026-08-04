@@ -27,6 +27,7 @@ import {
   listTeam,
   type MeetingRow,
 } from '../meetings/queries'
+import { approverFor, approverName, mayDoItThemselves } from './approvals'
 import { runTool } from './tools'
 
 /**
@@ -429,14 +430,88 @@ async function stageMove(
     )
   }
 
-  return stage(
-    await runTool(actor, 'reschedule_meeting', {
+  return await stageOrAsk(
+    actor,
+    meeting,
+    'meeting.edit',
+    'reschedule_meeting',
+    {
       meeting_id: meeting.id,
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
-    }),
+    },
     `${meeting.title} moves to ${whenLabel(startsAt, endsAt, actor.timezone, now)}. Everyone on it gets told once you confirm.`,
   )
+}
+
+/**
+ * The fork at the heart of ADR 0008.
+ *
+ * If the person may make this change, it is staged as a change. If they may
+ * not, it is staged as a *request* to the person who may — same card, same
+ * Confirm button, different consequence, and the card says which.
+ *
+ * A refusal only remains a refusal when there is nobody to ask: a meeting
+ * with no other owner, or one the person cannot see at all.
+ */
+async function stageOrAsk(
+  actor: SessionActor,
+  meeting: MeetingRow,
+  action: 'meeting.edit' | 'meeting.delete',
+  tool: 'reschedule_meeting' | 'cancel_meeting' | 'reassign_meeting',
+  input: Record<string, unknown>,
+  answerWhenAllowed: string,
+): Promise<AssistantReply> {
+  if (mayDoItThemselves(actor, action, meeting)) {
+    return stage(await runTool(actor, tool, input), answerWhenAllowed)
+  }
+
+  const approver = approverFor(meeting, actor)
+  if (!approver) {
+    // Nobody to ask. The tool's own refusal is already phrased for a person.
+    return stage(await runTool(actor, tool, input), answerWhenAllowed)
+  }
+
+  const who = await approverName(actor, approver)
+  const built = describeRequest(actor, meeting, tool, input, who)
+
+  return {
+    answer:
+      `That is not yours to change, so I will ask ${who} instead. ` +
+      `It goes to their chat and nothing happens unless they say yes.`,
+    actions: [built],
+  }
+}
+
+function describeRequest(
+  actor: SessionActor,
+  meeting: MeetingRow,
+  tool: 'reschedule_meeting' | 'cancel_meeting' | 'reassign_meeting',
+  input: Record<string, unknown>,
+  who: string,
+): StagedAction {
+  const zone = actor.timezone
+  const now = new Date()
+
+  const what =
+    tool === 'cancel_meeting'
+      ? `cancel ${meeting.title}, ${whenLabel(meeting.startsAt, meeting.endsAt, zone, now)}`
+      : tool === 'reschedule_meeting'
+        ? `move ${meeting.title} to ${whenLabel(new Date(String(input.starts_at)), new Date(String(input.ends_at)), zone, now)}`
+        : `change who is on ${meeting.title}`
+
+  return {
+    tool: 'request_approval',
+    input: {
+      for_tool: tool,
+      meeting_id: meeting.id,
+      ...(Object.fromEntries(
+        Object.entries(input).map(([k, v]) => [k, String(v)]),
+      ) as Record<string, string>),
+    },
+    verb: 'Ask',
+    what: `${who} to ${what}`,
+  }
 }
 
 async function stageCancel(
@@ -447,11 +522,12 @@ async function stageCancel(
   const found = await resolveRef(actor, intent.ref, now)
   if (!found.ok) return plain(found.reason)
 
-  return stage(
-    await runTool(actor, 'cancel_meeting', {
-      meeting_id: found.meeting.id,
-      reason: intent.reason,
-    }),
+  return await stageOrAsk(
+    actor,
+    found.meeting,
+    'meeting.delete',
+    'cancel_meeting',
+    { meeting_id: found.meeting.id, reason: intent.reason },
     `${found.meeting.title} on ${whenLabel(found.meeting.startsAt, found.meeting.endsAt, actor.timezone, now)} would be cancelled, and its pending reminders dropped.`,
   )
 }
@@ -470,12 +546,16 @@ async function stageReassign(
   const joining = await resolvePerson(actor, intent.toName)
   if (!joining.ok) return plain(joining.reason)
 
-  return stage(
-    await runTool(actor, 'reassign_meeting', {
+  return await stageOrAsk(
+    actor,
+    found.meeting,
+    'meeting.edit',
+    'reassign_meeting',
+    {
       meeting_id: found.meeting.id,
       from_user_id: leaving.person.id,
       to_user_id: joining.person.id,
-    }),
+    },
     `${joining.person.fullName} would take ${leaving.person.fullName}'s place on ${found.meeting.title}.`,
   )
 }

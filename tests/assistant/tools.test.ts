@@ -68,6 +68,8 @@ const NO_PERMISSION_NEEDED: Record<string, string> = {
   list_team: 'the team roster is visible to everyone in the org',
   list_clients: 'the clients screen is in the nav for everyone; client.manage gates changing them, not seeing them',
   notify_user: 'anyone can send a colleague a direct message by clicking',
+  request_approval:
+    'asking has no effect — the permission is checked when the approver answers, against the approver (ADR 0008)',
 }
 
 describe('the tool catalogue', () => {
@@ -98,6 +100,7 @@ describe('the tool catalogue', () => {
           'create_meeting',
           'notify_user',
           'reassign_meeting',
+          'request_approval',
           'reschedule_meeting',
         ] satisfies ToolName[]
       ).sort(),

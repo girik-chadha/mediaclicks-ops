@@ -74,6 +74,12 @@ export async function runTool(
         return await stageReassign(actor, input)
       case 'notify_user':
         return await stageNotify(actor, input)
+
+      // Staged by the planner, not reachable through runTool. It carries no
+      // permission of its own because asking has no effect — the check
+      // happens when the approver answers, against the approver (ADR 0008).
+      case 'request_approval':
+        return fail('An approval request is built by the planner, not called directly.')
     }
   } catch (error) {
     // ForbiddenError's message is already written for a person ("Emma can't

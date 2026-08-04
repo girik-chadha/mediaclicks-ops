@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createChannelAction,
+  decideApprovalAction,
   joinChannelAction,
   markReadAction,
   openDirectMessageAction,
@@ -19,6 +20,13 @@ export interface ConversationDto {
   online: boolean
 }
 
+export interface ApprovalDto {
+  id: string
+  status: string
+  summary: string
+  canDecide: boolean
+}
+
 export interface MessageDto {
   id: string
   authorUserId: string | null
@@ -26,6 +34,7 @@ export interface MessageDto {
   body: string
   createdAt: string
   mine: boolean
+  approval?: ApprovalDto
 }
 
 export interface PersonDto {
@@ -51,6 +60,9 @@ interface Group {
   at: Date
   mine: boolean
   lines: string[]
+  /** An approval never joins a run — it is a thing to act on, not a line
+   *  of chat, and burying it in someone's paragraph loses it. */
+  approval?: ApprovalDto
 }
 
 /**
@@ -69,7 +81,7 @@ function group(messages: MessageDto[]): Group[] {
     const sameAuthor = last && last.authorName === m.authorName
     const closeInTime = last && at.getTime() - last.at.getTime() < GROUP_WINDOW_MS
 
-    if (sameAuthor && closeInTime) last.lines.push(m.body)
+    if (sameAuthor && closeInTime && !m.approval && !last.approval) last.lines.push(m.body)
     else
       groups.push({
         key: m.id,
@@ -77,6 +89,7 @@ function group(messages: MessageDto[]): Group[] {
         at,
         mine: m.mine,
         lines: [m.body],
+        ...(m.approval ? { approval: m.approval } : {}),
       })
   }
 
@@ -316,6 +329,7 @@ export function ChatView({
                           {line}
                         </p>
                       ))}
+                      {g.approval && <ApprovalCard approval={g.approval} />}
                     </div>
                   </div>
                 ))
@@ -421,5 +435,68 @@ function Avatar({
         />
       )}
     </span>
+  )
+}
+
+
+/**
+ * An approval request, inside the conversation it arrived in (ADR 0008).
+ *
+ * Only the person being asked sees buttons — `canDecide` is computed on the
+ * server, and `decideApprovalAction` checks it again rather than trusting
+ * that this component rendered honestly. Everyone else, including the
+ * person who asked, sees the same card showing where it stands, so the
+ * requester can tell "not answered yet" from "turned down".
+ */
+function ApprovalCard({ approval }: { approval: ApprovalDto }) {
+  const [state, setState] = useState(approval.status)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, startTransition] = useTransition()
+
+  function decide(decision: 'approved' | 'denied') {
+    setError(null)
+    startTransition(async () => {
+      const result = await decideApprovalAction(approval.id, decision)
+      if (result.ok) setState(decision)
+      else setError(result.message)
+    })
+  }
+
+  const settled = state !== 'pending'
+
+  return (
+    <div className="mt-2 max-w-[420px] rounded-sm border border-rule border-l-2 border-l-signal p-3">
+      <div className="text-micro uppercase text-signal">Needs your approval</div>
+      <p className="mt-1.5 text-body">{approval.summary}</p>
+
+      {settled ? (
+        <p className="mt-2 text-label text-slate">
+          {state === 'approved' ? 'You approved this.' : 'You turned this down.'}
+        </p>
+      ) : approval.canDecide ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => decide('approved')}
+            disabled={busy}
+            className="h-8 cursor-pointer rounded-sm btn-signal px-3 text-label font-semibold disabled:opacity-50"
+          >
+            {busy ? 'Working…' : 'Approve'}
+          </button>
+          <button
+            type="button"
+            onClick={() => decide('denied')}
+            disabled={busy}
+            className="h-8 cursor-pointer rounded-sm border border-rule bg-surface px-3 text-label font-medium transition-colors duration-[80ms] hover:border-signal disabled:opacity-50"
+          >
+            Deny
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-label text-slate">Waiting on them.</p>
+      )}
+
+      {error && <p className="mt-2 text-label text-live">{error}</p>}
+    </div>
   )
 }

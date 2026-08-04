@@ -1,5 +1,7 @@
 'use server'
 
+import { decideApproval } from '@/server/assistant/approvals'
+
 import { revalidatePath } from 'next/cache'
 import {
   createChannel,
@@ -71,4 +73,25 @@ export async function joinChannelAction(channelId: string): Promise<ChatActionSt
   }
   revalidatePath('/chat')
   return {}
+}
+
+/**
+ * The approver's answer to a change someone asked them to make (ADR 0008).
+ *
+ * Thin on purpose: every rule — is it yours to decide, is it still pending,
+ * are you still allowed to make this change — lives in decideApproval,
+ * where it runs against the database rather than against whatever the
+ * browser believed when it rendered the button.
+ */
+export async function decideApprovalAction(
+  requestId: string,
+  decision: 'approved' | 'denied',
+  note?: string,
+): Promise<{ ok: boolean; message: string }> {
+  const result = await decideApproval(requestId, decision, note)
+  revalidatePath('/chat')
+  revalidatePath('/calendar')
+  revalidatePath('/today')
+  revalidatePath('/home')
+  return result
 }

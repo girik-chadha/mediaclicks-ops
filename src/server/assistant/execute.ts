@@ -1,6 +1,6 @@
 import 'server-only'
 import type { PerformedAction, StagedAction } from '@/lib/assistant/plan'
-import { meetingUpdateInput, type MeetingUpdateInput } from '@/lib/meetings/schema'
+import type { MeetingUpdateInput } from '@/lib/meetings/schema'
 import { requireActor, type SessionActor } from '../auth/session'
 import { asAgent } from '../audit/agent-context'
 import { openDirectMessage, sendMessage } from '../chat/mutations'
@@ -8,6 +8,8 @@ import { db } from '../db'
 import { auditLog } from '../db/schema'
 import { cancelMeeting, createMeeting, updateMeeting } from '../meetings/mutations'
 import { getMeeting, type MeetingRow } from '../meetings/queries'
+import { asUpdateInput } from './shape'
+import { approverFor, fileApproval } from './approvals'
 import { unseal } from './seal'
 
 /**
@@ -74,6 +76,22 @@ async function perform(actor: SessionActor, action: StagedAction): Promise<Perfo
         break
       }
 
+      case 'request_approval': {
+        const meeting = await require_(actor, action.input.meeting_id)
+        const approver = approverFor(meeting, actor)
+        if (!approver) throw new Error('There is nobody to ask.')
+        // The payload keeps only the fields the change itself needs; the
+        // routing field is not part of what gets applied later.
+        const { for_tool: _forTool, ...payload } = action.input
+        await fileApproval(
+          actor,
+          { ...action, tool: _forTool as StagedAction['tool'], input: payload },
+          meeting,
+          approver,
+        )
+        break
+      }
+
       case 'cancel_meeting': {
         await cancelMeeting(action.input.meeting_id!, action.input.reason || undefined)
         break
@@ -132,31 +150,3 @@ async function require_(actor: SessionActor, id: string | undefined): Promise<Me
   return meeting
 }
 
-/**
- * Rebuilds the full edit payload from the current row.
- *
- * updateMeeting takes the whole meeting rather than a patch, deliberately
- * (§4.1.1: one modal, prefilled). Reading the row here rather than sealing
- * it into the plan means a field someone else changed in the meantime is
- * preserved instead of being reverted to what it was when the plan was made.
- *
- * Parsed rather than cast. The stored row is wider than the input type —
- * `type: 'client'` with no provider is representable in TypeScript's view of
- * the column even though neither the form nor the CHECK constraint allows
- * it — and parsing turns "cannot happen" into a caught error instead of a
- * cast that would be wrong exactly when it mattered.
- */
-function asUpdateInput(m: MeetingRow): MeetingUpdateInput {
-  return meetingUpdateInput.parse({
-    id: m.id,
-    title: m.title,
-    description: m.description ?? undefined,
-    startsAt: m.startsAt,
-    endsAt: m.endsAt,
-    type: m.type,
-    clientId: m.clientId ?? undefined,
-    conferencingProvider: m.conferencingProvider,
-    conferenceUrl: m.conferenceUrl ?? undefined,
-    attendeeIds: m.attendeeIds,
-  })
-}

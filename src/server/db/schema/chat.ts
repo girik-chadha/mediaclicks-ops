@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import { approvalRequests } from './approvals'
 import { oneOf } from './_sql'
 import { organisations } from './org'
 import { users } from './users'
@@ -117,6 +118,19 @@ export const messages = pgTable(
     authorName: text('author_name').notNull(),
 
     body: text('body').notNull(),
+
+    /**
+     * Set when this message *is* an approval request, so the chat renders
+     * Accept and Deny on it rather than plain text.
+     *
+     * The link lives here rather than on the request because a message is
+     * the thing being rendered, and a join from the other side would mean
+     * every channel read paying for a table most messages never touch.
+     */
+    approvalRequestId: uuid('approval_request_id').references(
+      () => approvalRequests.id,
+      { onDelete: 'set null' },
+    ),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     editedAt: timestamp('edited_at', { withTimezone: true }),

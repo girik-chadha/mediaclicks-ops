@@ -2,7 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { SessionActor } from '../auth/session'
 import { db } from '../db'
-import { channelMembers, channels, messages, users } from '../db/schema'
+import { approvalRequests, channelMembers, channels, messages, users } from '../db/schema'
 import { inOrg } from '../scope'
 
 /** Someone is "online" if they have been seen in the last five minutes. */
@@ -174,6 +174,17 @@ export interface ChatMessage {
   createdAt: Date
   editedAt: Date | null
   mine: boolean
+  /**
+   * Present when this message is an approval request (ADR 0008). The
+   * decision buttons only render for the person being asked — `canDecide`
+   * is that check, made here where the session is, not in the browser.
+   */
+  approval?: {
+    id: string
+    status: string
+    summary: string
+    canDecide: boolean
+  }
 }
 
 /** Refuses to return anything for a channel the actor is not a member of. */
@@ -208,15 +219,36 @@ export async function listMessages(
       body: messages.body,
       createdAt: messages.createdAt,
       editedAt: messages.editedAt,
+      approvalId: approvalRequests.id,
+      approvalStatus: approvalRequests.status,
+      approvalSummary: approvalRequests.summary,
+      approverUserId: approvalRequests.approverUserId,
     })
     .from(messages)
+    .leftJoin(approvalRequests, eq(approvalRequests.id, messages.approvalRequestId))
     .where(and(eq(messages.channelId, channelId), isNull(messages.deletedAt)))
     .orderBy(desc(messages.createdAt))
     .limit(limit)
 
   // Newest-first from the database so the index and LIMIT do the work;
   // oldest-first for reading.
-  return rows.reverse().map((m) => ({ ...m, mine: m.authorUserId === actor.id }))
+  return rows.reverse().map(({ approvalId, approvalStatus, approvalSummary, approverUserId, ...m }) => ({
+    ...m,
+    mine: m.authorUserId === actor.id,
+    ...(approvalId
+      ? {
+          approval: {
+            id: approvalId,
+            status: approvalStatus ?? 'pending',
+            summary: approvalSummary ?? '',
+            // Decided here, where the session is. A browser deciding who may
+            // approve would be a suggestion, not a rule — and the server
+            // action re-checks it anyway.
+            canDecide: approverUserId === actor.id && approvalStatus === 'pending',
+          },
+        }
+      : {}),
+  }))
 }
 
 /** Channels in the org the actor has not joined, so they can be discovered. */

@@ -36,6 +36,7 @@ export const TOOL_NAMES = [
   'cancel_meeting',
   'reassign_meeting',
   'notify_user',
+  'request_approval',
 ] as const
 
 export type ToolName = (typeof TOOL_NAMES)[number]
@@ -66,6 +67,10 @@ export const TOOLS: readonly ToolSpec[] = [
   { name: 'cancel_meeting', effect: 'write', action: 'meeting.delete' },
   { name: 'reassign_meeting', effect: 'write', action: 'meeting.edit' },
   { name: 'notify_user', effect: 'write', action: null },
+  // Asking someone to make a change needs no permission — anyone may ask,
+  // and asking has no effect. The permission is checked when the approver
+  // says yes, against the approver (ADR 0008).
+  { name: 'request_approval', effect: 'write', action: null },
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
