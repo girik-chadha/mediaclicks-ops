@@ -333,13 +333,9 @@ const schedule: Matcher = (text) => {
   const time = takeTimeOfDay(rest)
   if (time) rest = time.rest
 
-  if (!time) {
-    return {
-      ok: false,
-      reason:
-        'What time? A new meeting needs one — try "tomorrow at 3pm" or "Friday at 10am".',
-    }
-  }
+  // A missing time is no longer a refusal. "Schedule a gmeet with Priya"
+  // is a perfectly clear request with a gap in it, and the planner asks
+  // rather than making the person retype the sentence.
 
   // 7. Whatever "with" introduced is who it is with.
   const withNames: string[] = []
@@ -351,19 +347,56 @@ const schedule: Matcher = (text) => {
     }
   }
 
-  if (withNames.length === 0) {
-    return { ok: false, reason: 'Who is the meeting with? Name a client or a teammate.' }
-  }
-
   return ok({
     kind: 'schedule',
     withNames,
-    when: { day: day?.day ?? null, time: time.time },
+    when: { day: day?.day ?? null, time: time?.time ?? null },
     durationMinutes,
     provider,
     title,
     url,
   })
+}
+
+/* ── Answering a question the assistant asked ─────────────────────────────
+   A bare reply carries no verb: "3pm", "priya and arjun", "zoom", a pasted
+   URL. It only means anything in the light of what was asked, so these are
+   parsed against the expected slot rather than through the matchers above.
+   That is also what stops "zoom" being read as a request to schedule one. */
+
+export function answerTime(text: string): TimeExpr | null {
+  const cleaned = normalise(text)
+  const day = takeDay(cleaned)
+  const rest = day ? day.rest : cleaned
+  const time = takeTimeOfDay(rest, true)
+  if (!day && !time) return null
+  return { day: day?.day ?? null, time: time?.time ?? null }
+}
+
+export function answerProvider(text: string): ScheduleIntent['provider'] | null {
+  const m = /\b(whats\s?app|google\s*meet|meet|zoom|no\s+platform|no\s+link|in\s+person|phone|none)\b/.exec(
+    normalise(text),
+  )
+  if (!m) return null
+  const key = m[1]!.replace(/\s+/g, ' ')
+  return key === 'none' ? 'none' : (PROVIDERS[key] ?? null)
+}
+
+export function answerNames(text: string): string[] {
+  const cleaned = normalise(text).replace(/^\s*with\s+/, '')
+  return cleaned
+    .split(/\s+and\s+|,/)
+    .map(denoise)
+    .filter((n) => n.length >= 2)
+}
+
+export function answerUrl(text: string): string | null {
+  return /\bhttps?:\/\/\S+/.exec(text)?.[0] ?? null
+}
+
+/** "no", "skip", "none", "never mind" — a refusal to answer, not an answer. */
+export function answerIsDecline(text: string): boolean {
+  return /^(?:no|nope|none|skip|nvm|never\s*mind|cancel|forget\s+it|stop)\b/.test(normalise(text))
 }
 
 const PROVIDERS: Record<string, ScheduleIntent['provider']> = {

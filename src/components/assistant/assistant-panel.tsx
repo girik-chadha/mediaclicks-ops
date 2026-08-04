@@ -33,7 +33,7 @@ export function openAssistant() {
  * and "I couldn't do that". They render identically because they are the
  * same thing to the reader: a reply, and no card.
  */
-type Phase = 'idle' | 'busy' | 'ready' | 'done' | 'answered'
+type Phase = 'idle' | 'busy' | 'ready' | 'done' | 'answered' | 'asking'
 
 /**
  * Taken from the grammar rather than written here, so the panel cannot
@@ -48,6 +48,12 @@ export function AssistantPanel() {
   const [answer, setAnswer] = useState('')
   const [plan, setPlan] = useState<PlanLine[]>([])
   const [token, setToken] = useState<string | null>(null)
+  // Set while the assistant is mid-question. Sent back with the next reply
+  // so "3pm" lands as an answer rather than as a fresh, meaningless request.
+  const [context, setContext] = useState<string | null>(null)
+  // Everything said so far this exchange, so a question and its answer read
+  // as a conversation instead of replacing each other.
+  const [turns, setTurns] = useState<{ you: string; bot: string }[]>([])
   const [done, setDone] = useState<PerformedAction[]>([])
   const [pending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -74,26 +80,33 @@ export function AssistantPanel() {
     const trimmed = text.trim()
     if (!trimmed || pending) return
 
+    const carried = context
     setPrompt(trimmed)
     setPhase('busy')
     setPlan([])
     setToken(null)
     setDone([])
+    // Only clear the thread when this is a fresh request, not an answer.
+    if (!carried) setTurns([])
 
     startTransition(async () => {
-      const result = await askAssistant(trimmed)
+      const result = await askAssistant(trimmed, carried)
       if (!result.ok) {
         setAnswer(result.error)
+        setContext(null)
         setPhase('answered')
         return
       }
       setAnswer(result.answer)
       setPlan(result.plan)
       setToken(result.token)
-      // A question with no changes to make is finished, not awaiting
-      // confirmation — showing a Confirm button for nothing is a lie about
-      // what the button does.
-      setPhase(result.token ? 'ready' : 'answered')
+      setContext(result.context)
+      if (carried) setTurns((t) => [...t, { you: trimmed, bot: result.answer }])
+
+      // Three outcomes, three states: a plan to confirm, a question to
+      // answer, or a finished reply. A Confirm button on a question would
+      // be a lie about what the button does.
+      setPhase(result.token ? 'ready' : result.context ? 'asking' : 'answered')
     })
   }
 
@@ -117,6 +130,8 @@ export function AssistantPanel() {
     setAnswer('')
     setPlan([])
     setToken(null)
+    setContext(null)
+    setTurns([])
     setDone([])
     inputRef.current?.focus()
   }
@@ -162,6 +177,18 @@ export function AssistantPanel() {
           </>
         )}
 
+        {/* Earlier exchanges first, then what was just said — a thread
+            reads top to bottom or it is not a thread. */}
+        {turns.map((t, i) => (
+          <div key={i} className="flex flex-col gap-4">
+            <Said prompt={t.you} />
+            <div className="flex flex-col gap-1">
+              <div className="text-micro uppercase text-slate">Assistant</div>
+              <p className="whitespace-pre-line text-body">{t.bot}</p>
+            </div>
+          </div>
+        ))}
+
         {phase !== 'idle' && <Said prompt={prompt} />}
 
         {phase === 'busy' && (
@@ -173,7 +200,7 @@ export function AssistantPanel() {
           </div>
         )}
 
-        {(phase === 'ready' || phase === 'answered') && (
+        {(phase === 'ready' || phase === 'answered' || phase === 'asking') && (
           <div className="flex flex-col gap-1">
             <div className="text-micro uppercase text-slate">Assistant</div>
             {/* pre-line: answers carry lists — a day's meetings, the free
@@ -208,6 +235,12 @@ export function AssistantPanel() {
             </div>
             <p className="text-label text-slate">Nothing is sent until you confirm.</p>
           </>
+        )}
+
+        {phase === 'asking' && (
+          <p className="text-label text-slate">
+            Answer above, or say “no” to drop it.
+          </p>
         )}
 
         {phase === 'answered' && (
@@ -248,7 +281,7 @@ export function AssistantPanel() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Ask for a change"
+          placeholder={phase === 'asking' ? 'Your answer' : 'Ask for a change'}
           disabled={pending}
           onKeyDown={(e) => {
             if (e.key !== 'Enter') return

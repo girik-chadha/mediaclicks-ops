@@ -13,6 +13,8 @@ import { addDays, fromWallClock, startOfDay, startOfWeek, toWallClock, zoneOffse
 export type DaySpec =
   | { readonly kind: 'today' }
   | { readonly kind: 'tomorrow' }
+  /** An already-resolved day, carried across turns of a conversation. */
+  | { readonly kind: 'onDate'; readonly iso: string }
   /** 0 = Sunday, matching getUTCDay. `next` skips to the following week. */
   | { readonly kind: 'weekday'; readonly weekday: number; readonly next: boolean }
 
@@ -176,6 +178,11 @@ export function resolveDay(day: DaySpec, now: Date, zone: string): Date {
   const todayStart = startOfDay(now, zone)
 
   switch (day.kind) {
+    case 'onDate':
+      // Resolved on an earlier turn. Replayed rather than re-derived, so
+      // "tomorrow" said at 23:59 still means the day it meant when it was
+      // heard, not the day the answer happened to arrive on.
+      return startOfDay(new Date(day.iso), zone)
     case 'today':
       return todayStart
     case 'tomorrow':

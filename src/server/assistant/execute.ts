@@ -33,7 +33,7 @@ import { unseal } from './seal'
  */
 export async function performPlan(token: string): Promise<PerformedAction[]> {
   const actor = await requireActor()
-  const actions = unseal(token, actor.id)
+  const actions = unseal<readonly StagedAction[]>(token, actor.id)
 
   return asAgent(async () => {
     const done: PerformedAction[] = []

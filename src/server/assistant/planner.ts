@@ -1,7 +1,21 @@
 import 'server-only'
-import { EXAMPLES, parse, type Intent, type MeetingRef } from '@/lib/assistant/parse'
-import type { AssistantReply, StagedAction } from '@/lib/assistant/plan'
-import { resolveRange, resolveWhen } from '@/lib/assistant/when'
+import {
+  answerIsDecline,
+  answerNames,
+  answerProvider,
+  answerTime,
+  answerUrl,
+  EXAMPLES,
+  parse,
+  type Intent,
+  type MeetingRef,
+} from '@/lib/assistant/parse'
+import type {
+  AssistantReply,
+  PendingSchedule,
+  StagedAction,
+} from '@/lib/assistant/plan'
+import { resolveDay, resolveRange, resolveWhen } from '@/lib/assistant/when'
 import { generatesLink } from '@/lib/meetings/schema'
 import { can } from '@/lib/permissions'
 import { formatRange, formatTime } from '@/lib/time'
@@ -39,6 +53,95 @@ import { runTool } from './tools'
 const LOOKBACK_DAYS = 7
 const LOOKAHEAD_DAYS = 60
 
+/**
+ * Continues a request the assistant asked a question about.
+ *
+ * The reply carries no verb — "3pm", "zoom", a pasted URL — so it is read
+ * against the slot that was asked for rather than through the matchers.
+ * That is also what keeps a bare "zoom" from being mistaken for a request
+ * to schedule one.
+ */
+export async function planFromAnswer(
+  actor: SessionActor,
+  pending: PendingSchedule,
+  reply: string,
+): Promise<AssistantReply> {
+  const now = new Date()
+
+  if (answerIsDecline(reply)) {
+    return plain('Dropped it. Nothing was scheduled.')
+  }
+
+  let next: PendingSchedule = pending
+
+  switch (pending.awaiting) {
+    case 'people': {
+      const names = answerNames(reply)
+      if (names.length === 0) {
+        return ask('I still need a name — a client, or someone on the team.', pending)
+      }
+      next = { ...pending, withNames: names }
+      break
+    }
+    case 'time': {
+      const when = answerTime(reply)
+      if (!when?.time) {
+        return ask('I need a time — "tomorrow at 3pm", "Friday at 10am".', pending)
+      }
+      next = {
+        ...pending,
+        dayIso: when.day ? resolveDay(when.day, now, actor.timezone).toISOString() : pending.dayIso,
+        hour: when.time.hour,
+        minute: when.time.minute,
+      }
+      break
+    }
+    case 'provider': {
+      const provider = answerProvider(reply)
+      if (!provider) {
+        return ask('WhatsApp, Google Meet, or Zoom?', pending)
+      }
+      next = { ...pending, provider }
+      break
+    }
+    case 'link': {
+      const url = answerUrl(reply)
+      if (!url) {
+        return ask(
+          'That does not look like a link. Paste the full URL, starting with https://.',
+          pending,
+        )
+      }
+      next = { ...pending, url }
+      break
+    }
+  }
+
+  // Back through the same path a first-time request takes, so a resumed
+  // conversation cannot reach a different set of rules than a one-liner.
+  return await stageSchedule(actor, fromPending(next), now)
+}
+
+/** Rebuilds a parsed intent from carried state. */
+function fromPending(p: PendingSchedule): Extract<Intent, { kind: 'schedule' }> {
+  return {
+    kind: 'schedule',
+    withNames: p.withNames,
+    when: {
+      // The day was already resolved to an instant when it was carried, so
+      // it is replayed as an absolute rather than re-derived — otherwise
+      // "tomorrow", answered near midnight, would mean a different day on
+      // the turn that consumes it than on the turn that heard it.
+      day: p.dayIso ? { kind: 'onDate', iso: p.dayIso } : null,
+      time: p.hour === null ? null : { hour: p.hour, minute: p.minute ?? 0 },
+    },
+    durationMinutes: p.durationMinutes,
+    provider: p.provider,
+    title: p.title,
+    url: p.url,
+  }
+}
+
 export async function planFromPrompt(
   actor: SessionActor,
   prompt: string,
@@ -70,6 +173,13 @@ const withExamples = (reason: string) =>
   `${reason}\n\n${EXAMPLES.map((e) => `· ${e}`).join('\n')}`
 
 const plain = (answer: string): AssistantReply => ({ answer, actions: [] })
+
+/** A question, with everything already said carried alongside it. */
+const ask = (answer: string, pending: PendingSchedule): AssistantReply => ({
+  answer,
+  actions: [],
+  pending,
+})
 
 /* ── Answering ────────────────────────────────────────────────────────── */
 
@@ -161,6 +271,39 @@ async function stageSchedule(
   intent: Extract<Intent, { kind: 'schedule' }>,
   now: Date,
 ): Promise<AssistantReply> {
+  const zone = actor.timezone
+
+  // ── Ask for whatever is missing, in the order a person would ────────────
+  // People first: without them there is nothing to schedule. Then the time.
+  // Then the platform, and only then the link, because which link to paste
+  // depends on the platform. Each question carries everything already said,
+  // so nobody retypes a sentence.
+  const pendingBase = {
+    kind: 'schedule' as const,
+    withNames: intent.withNames,
+    dayIso: intent.when.day ? resolveDay(intent.when.day, now, zone).toISOString() : null,
+    hour: intent.when.time?.hour ?? null,
+    minute: intent.when.time?.minute ?? null,
+    durationMinutes: intent.durationMinutes,
+    provider: intent.provider,
+    title: intent.title,
+    url: intent.url,
+  }
+
+  if (intent.withNames.length === 0) {
+    return ask('Who is it with? Name a client or a teammate.', {
+      ...pendingBase,
+      awaiting: 'people',
+    })
+  }
+
+  if (intent.when.time === null) {
+    return ask('What time? For example "tomorrow at 3pm" or "Friday at 10am".', {
+      ...pendingBase,
+      awaiting: 'time',
+    })
+  }
+
   const clients = await listClients(actor)
   const team = await listTeam(actor)
 
@@ -198,22 +341,27 @@ async function stageSchedule(
 
   // Platform. §4.1.1 offers three for a client meeting and never defaults,
   // because a WhatsApp call and a Zoom link reach the client differently.
+  // An internal meeting with nothing said is genuinely "no platform" — the
+  // team sits together — so only a client forces the question.
   let provider = intent.provider
   if (!provider) {
     if (client) {
-      return plain(
-        `Which platform for the ${client.companyName} call — WhatsApp, Google Meet, or Zoom? ` +
-          'Say it and I\'ll set it up.',
+      return ask(
+        `Which platform for the ${client.companyName} call — WhatsApp, Google Meet, or Zoom?`,
+        { ...pendingBase, awaiting: 'provider' },
       )
     }
     provider = 'none'
   }
 
-  // Meet and Zoom are link-based and nothing here generates one (§4.2).
+  // Meet and Zoom are link-based and nothing here generates one (§4.2), so
+  // this is the one question the assistant cannot answer for itself.
   if (generatesLink(provider) && !intent.url) {
-    return plain(
-      `Create the ${provider === 'zoom' ? 'Zoom' : 'Google Meet'} yourself and paste the link into the message — ` +
-        'nothing here can make one, and a calendar entry with no way to join is worse than none.',
+    const name = provider === 'zoom' ? 'Zoom' : 'Google Meet'
+    return ask(
+      `Create the ${name} yourself and paste the link here — nothing in this app can generate one, ` +
+        'and a calendar entry with no way to join is worse than none.',
+      { ...pendingBase, provider, awaiting: 'link' },
     )
   }
 

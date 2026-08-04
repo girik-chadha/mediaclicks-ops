@@ -1,6 +1,5 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { StagedAction } from '@/lib/assistant/plan'
 
 /**
  * Signs the staged plan so that confirming executes exactly what was shown.
@@ -22,10 +21,10 @@ import type { StagedAction } from '@/lib/assistant/plan'
 
 const TTL_MS = 15 * 60_000
 
-interface Envelope {
+interface Envelope<T> {
   readonly actorId: string
   readonly expiresAt: number
-  readonly actions: readonly StagedAction[]
+  readonly body: T
 }
 
 export class SealError extends Error {
@@ -47,17 +46,25 @@ function sign(payload: string): string {
   return createHmac('sha256', secret()).update(payload).digest('base64url')
 }
 
-export function seal(actorId: string, actions: readonly StagedAction[]): string {
-  const envelope: Envelope = {
+/**
+ * Seals any payload the browser has to hold between turns.
+ *
+ * Used for two things now: the staged plan behind Confirm, and the
+ * half-finished request behind a question the assistant asked. Both have
+ * the same requirement — the server must be able to trust what comes back —
+ * so both get the same signature rather than a second mechanism.
+ */
+export function seal<T>(actorId: string, body: T): string {
+  const envelope: Envelope<T> = {
     actorId,
     expiresAt: Date.now() + TTL_MS,
-    actions,
+    body,
   }
   const payload = Buffer.from(JSON.stringify(envelope), 'utf8').toString('base64url')
   return `${payload}.${sign(payload)}`
 }
 
-export function unseal(token: string, actorId: string): readonly StagedAction[] {
+export function unseal<T>(token: string, actorId: string): T {
   const dot = token.lastIndexOf('.')
   if (dot <= 0) throw new SealError('That plan is no longer valid.')
 
@@ -74,7 +81,7 @@ export function unseal(token: string, actorId: string): readonly StagedAction[] 
 
   const envelope = JSON.parse(
     Buffer.from(payload, 'base64url').toString('utf8'),
-  ) as Envelope
+  ) as Envelope<T>
 
   // Checked after the signature, so a tampered envelope never reaches here
   // and these two are about a genuine plan going stale or being handed on.
@@ -83,5 +90,5 @@ export function unseal(token: string, actorId: string): readonly StagedAction[] 
     throw new SealError('That plan has expired. Ask again and confirm the new one.')
   }
 
-  return envelope.actions
+  return envelope.body
 }

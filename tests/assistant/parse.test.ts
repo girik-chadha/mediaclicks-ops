@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { EXAMPLES, parse } from '@/lib/assistant/parse'
+import {
+  answerIsDecline,
+  answerNames,
+  answerProvider,
+  answerTime,
+  answerUrl,
+  EXAMPLES,
+  parse,
+} from '@/lib/assistant/parse'
 
 /**
  * The grammar is the whole reason this assistant costs nothing to run, and
@@ -239,7 +247,6 @@ describe('the boundary', () => {
 
   it.each([
     'summarise my week and tell me what to drop',
-    'book a meeting with the client next tuesday',
     'who is the busiest person this week',
     'delete everything',
     'why is the sky blue',
@@ -340,8 +347,71 @@ describe('scheduling something new', () => {
     })
   })
 
-  it('asks rather than inventing the two things that matter', () => {
-    expect(refusal('schedule a call with miniz')).toMatch(/what time/i)
-    expect(refusal('schedule a meeting at 3pm')).toMatch(/who is the meeting with/i)
+  it('carries a half-specified request instead of refusing it', () => {
+    // The gaps are real, but a gap is not a misunderstanding. The parser
+    // reports what it heard and the planner asks for the rest — refusing
+    // here would make the person retype the whole sentence with the missing
+    // word wedged in.
+    expect(intent('schedule a call with miniz')).toMatchObject({
+      kind: 'schedule',
+      withNames: ['miniz'],
+      when: { time: null },
+    })
+    expect(intent('schedule a meeting at 3pm')).toMatchObject({
+      kind: 'schedule',
+      withNames: [],
+      when: { time: { hour: 15, minute: 0 } },
+    })
+    // A booking request with a day but no time is still a booking request.
+    expect(intent('book a meeting with the client next tuesday')).toMatchObject({
+      kind: 'schedule',
+      when: { time: null },
+    })
+  })
+})
+
+describe('answering a question the assistant asked', () => {
+  it('reads a bare time', () => {
+    expect(answerTime('3pm')).toEqual({ day: null, time: { hour: 15, minute: 0 } })
+    expect(answerTime('tomorrow at 10am')).toEqual({
+      day: { kind: 'tomorrow' },
+      time: { hour: 10, minute: 0 },
+    })
+    expect(answerTime('friday morning')).toEqual({
+      day: { kind: 'weekday', weekday: 5, next: false },
+      time: { hour: 10, minute: 0 },
+    })
+    expect(answerTime('whenever')).toBeNull()
+  })
+
+  it('reads a bare platform', () => {
+    expect(answerProvider('zoom')).toBe('zoom')
+    expect(answerProvider('whatsapp')).toBe('whatsapp')
+    expect(answerProvider('google meet')).toBe('google_meet')
+    expect(answerProvider('lets do it on meet')).toBe('google_meet')
+    expect(answerProvider('none')).toBe('none')
+    expect(answerProvider('dunno')).toBeNull()
+  })
+
+  it('reads bare names', () => {
+    expect(answerNames('priya')).toEqual(['priya'])
+    expect(answerNames('priya and arjun')).toEqual(['priya', 'arjun'])
+    expect(answerNames('with the miniz team')).toEqual(['miniz'])
+  })
+
+  it('reads a pasted link and rejects anything else', () => {
+    expect(answerUrl('https://zoom.us/j/123')).toBe('https://zoom.us/j/123')
+    expect(answerUrl('here you go: https://meet.google.com/abc-defg-hij thanks')).toBe(
+      'https://meet.google.com/abc-defg-hij',
+    )
+    expect(answerUrl('i dont have one')).toBeNull()
+  })
+
+  it('recognises a refusal to answer', () => {
+    for (const no of ['no', 'nope', 'skip', 'never mind', 'forget it', 'cancel']) {
+      expect(answerIsDecline(no)).toBe(true)
+    }
+    expect(answerIsDecline('3pm')).toBe(false)
+    expect(answerIsDecline('zoom')).toBe(false)
   })
 })

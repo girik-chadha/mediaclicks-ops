@@ -30,7 +30,7 @@ describe('the confirmation seal', () => {
     const [payload, signature] = token.split('.')
 
     const tampered = JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8'))
-    tampered.actions[0].input.meeting_id = '44444444-4444-4444-4444-444444444444'
+    tampered.body[0].input.meeting_id = '44444444-4444-4444-4444-444444444444'
 
     const forged =
       Buffer.from(JSON.stringify(tampered), 'utf8').toString('base64url') + '.' + signature
