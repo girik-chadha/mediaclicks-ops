@@ -70,8 +70,17 @@ function layout(dayMeetings: MeetingDto[], zone: string): Positioned[] {
     const width = 100 / columns
     return {
       meeting: m,
-      top: topFor(minutesIntoDay(new Date(m.startsAt), zone)),
-      height: Math.max(22, topFor(minutesIntoDay(new Date(m.endsAt), zone)) - topFor(minutesIntoDay(new Date(m.startsAt), zone))),
+      // Clamped to the visible window. A meeting that starts before 07:00
+      // has a negative offset, and the scroll container simply cuts the top
+      // off it — the block is there, half of it is above the grid, and the
+      // title is the half you lose. Clamping keeps it visible and clickable
+      // at the edge instead.
+      top: Math.max(0, topFor(minutesIntoDay(new Date(m.startsAt), zone))),
+      height: Math.max(
+        22,
+        Math.min(GRID_HEIGHT, topFor(minutesIntoDay(new Date(m.endsAt), zone))) -
+          Math.max(0, topFor(minutesIntoDay(new Date(m.startsAt), zone))),
+      ),
       left: lane[i]! * width,
       width,
     }
@@ -181,35 +190,59 @@ export function WeekGrid({
                         'background 400ms linear, border-color 400ms linear, border-left-width 80ms linear, opacity 400ms linear',
                     }}
                   >
-                    <div className="flex items-start justify-between gap-1">
-                      <span
-                        className="font-mono text-[0.6875rem] tracking-[-0.02em] tabular-nums"
-                        style={{
-                          color: isTimeCritical(state) ? 'var(--live)' : 'var(--slate)',
-                        }}
-                      >
-                        {formatRange(new Date(meeting.startsAt), new Date(meeting.endsAt), zone)}
-                      </span>
-                      {/* Monochrome, never brand colour (§5). */}
-                      <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
-                        {providerCode(meeting.conferencingProvider)}
-                      </span>
-                    </div>
-
-                    {/* Client name above the title. Team meetings show nothing
-                        here — the absence is the signal (§5). */}
-                    {meeting.clientName && (
-                      <div className="mt-0.5 truncate text-micro uppercase text-slate">
-                        {meeting.clientName}
+                    {/* A 30-minute block is 28px tall and the stacked layout
+                        below needs about 40px, so on a short meeting the
+                        title was being clipped clean off — the one piece of
+                        information the block exists to carry. Under 45
+                        minutes it collapses to a single line and drops the
+                        time range, which the block's own position already
+                        states. */}
+                    {height < 44 ? (
+                      <div className="flex items-baseline gap-1.5">
+                        <span
+                          className="min-w-0 flex-1 truncate text-label leading-[1.2]"
+                          style={{ textDecoration: style.textDecoration }}
+                        >
+                          {meeting.clientName ? `${meeting.clientName} — ` : ''}
+                          {meeting.title}
+                        </span>
+                        <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
+                          {providerCode(meeting.conferencingProvider)}
+                        </span>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-1">
+                          <span
+                            className="font-mono text-[0.6875rem] tracking-[-0.02em] tabular-nums"
+                            style={{
+                              color: isTimeCritical(state) ? 'var(--live)' : 'var(--slate)',
+                            }}
+                          >
+                            {formatRange(new Date(meeting.startsAt), new Date(meeting.endsAt), zone)}
+                          </span>
+                          {/* Monochrome, never brand colour (§5). */}
+                          <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
+                            {providerCode(meeting.conferencingProvider)}
+                          </span>
+                        </div>
 
-                    <div
-                      className="mt-px truncate text-label leading-[1.3]"
-                      style={{ textDecoration: style.textDecoration }}
-                    >
-                      {meeting.title}
-                    </div>
+                        {/* Client name above the title. Team meetings show
+                            nothing here — the absence is the signal (§5). */}
+                        {meeting.clientName && (
+                          <div className="mt-0.5 truncate text-micro uppercase text-slate">
+                            {meeting.clientName}
+                          </div>
+                        )}
+
+                        <div
+                          className="mt-px truncate text-label leading-[1.3]"
+                          style={{ textDecoration: style.textDecoration }}
+                        >
+                          {meeting.title}
+                        </div>
+                      </>
+                    )}
                   </button>
                 )
               })}

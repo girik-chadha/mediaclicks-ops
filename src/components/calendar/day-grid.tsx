@@ -129,6 +129,11 @@ export function DayGrid({
               const style = blockStyle(m, state)
               const start = minutesIntoDay(new Date(m.startsAt), zone)
               const end = minutesIntoDay(new Date(m.endsAt), zone)
+              // Clamped, and collapsed to one line when short — see the same
+              // pair of fixes in week-grid.tsx for why.
+              const top = Math.max(0, topFor(start))
+              const height = Math.max(26, Math.min(GRID_HEIGHT, topFor(end)) - top)
+              const compact = height < 44
 
               return (
                 <button
@@ -139,8 +144,8 @@ export function DayGrid({
                   // both unreadable. They stack and the later one wins the tap.
                   className="absolute inset-x-1 overflow-hidden rounded-sm text-left"
                   style={{
-                    top: topFor(start),
-                    height: Math.max(26, topFor(end) - topFor(start)),
+                    top,
+                    height,
                     padding: '5px 8px',
                     background: style.background,
                     border: style.border,
@@ -148,28 +153,45 @@ export function DayGrid({
                     opacity: style.opacity,
                   }}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span
-                      className="font-mono text-[0.6875rem] tracking-[-0.02em] tabular-nums"
-                      style={{ color: isTimeCritical(state) ? 'var(--live)' : 'var(--slate)' }}
-                    >
-                      {formatRange(new Date(m.startsAt), new Date(m.endsAt), zone)}
-                    </span>
-                    <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
-                      {providerCode(m.conferencingProvider)}
-                    </span>
-                  </div>
-                  {m.clientName && (
-                    <div className="truncate text-micro uppercase text-slate">
-                      {m.clientName}
+                  {compact ? (
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className="min-w-0 flex-1 truncate text-label leading-[1.2]"
+                        style={{ textDecoration: style.textDecoration }}
+                      >
+                        {m.clientName ? `${m.clientName} — ` : ''}
+                        {m.title}
+                      </span>
+                      <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
+                        {providerCode(m.conferencingProvider)}
+                      </span>
                     </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className="font-mono text-[0.6875rem] tracking-[-0.02em] tabular-nums"
+                          style={{ color: isTimeCritical(state) ? 'var(--live)' : 'var(--slate)' }}
+                        >
+                          {formatRange(new Date(m.startsAt), new Date(m.endsAt), zone)}
+                        </span>
+                        <span className="shrink-0 font-mono text-[0.5625rem] tracking-[-0.02em] text-slate">
+                          {providerCode(m.conferencingProvider)}
+                        </span>
+                      </div>
+                      {m.clientName && (
+                        <div className="truncate text-micro uppercase text-slate">
+                          {m.clientName}
+                        </div>
+                      )}
+                      <div
+                        className="truncate text-label"
+                        style={{ textDecoration: style.textDecoration }}
+                      >
+                        {m.title}
+                      </div>
+                    </>
                   )}
-                  <div
-                    className="truncate text-label"
-                    style={{ textDecoration: style.textDecoration }}
-                  >
-                    {m.title}
-                  </div>
                 </button>
               )
             })}
