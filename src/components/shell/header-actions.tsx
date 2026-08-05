@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { openAssistant } from '@/components/assistant/assistant-panel'
 
 const SHORTCUTS = [
@@ -22,6 +23,23 @@ const SHORTCUTS = [
  */
 export function HeaderActions() {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+  const router = useRouter()
+
+  // The calendar has its own New meeting button in its toolbar, beside the
+  // week controls. Two of them on one screen is a question about whether
+  // they do different things, and they do not.
+  const onCalendar = pathname === '/calendar'
+
+  /**
+   * Everywhere else the button used to be a plain link to /calendar, which
+   * navigated and then sat there — the person clicked "New meeting" and got
+   * a calendar. It now carries the intent across in the URL, and the
+   * calendar opens the same modal it opens for its own button.
+   */
+  const newMeeting = useCallback(() => {
+    router.push('/calendar?new=1')
+  }, [router])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -32,11 +50,12 @@ export function HeaderActions() {
 
       if (e.key === '?') setOpen(true)
       else if (e.key === 'a') openAssistant()
+      else if (e.key === 'n' && !onCalendar) newMeeting()
       else if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [onCalendar, newMeeting])
 
   return (
     <>
@@ -57,12 +76,15 @@ export function HeaderActions() {
         Assistant
       </button>
 
-      <a
-        href="/calendar"
-        className="flex h-8 items-center rounded-sm btn-signal px-3 text-label font-semibold"
-      >
-        New meeting
-      </a>
+      {!onCalendar && (
+        <button
+          type="button"
+          onClick={newMeeting}
+          className="flex h-8 items-center rounded-sm btn-signal px-3 text-label font-semibold"
+        >
+          New meeting
+        </button>
+      )}
 
       {open && (
         <div

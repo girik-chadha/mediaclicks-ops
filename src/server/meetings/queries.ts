@@ -204,6 +204,9 @@ export async function listClients(actor: SessionActor) {
       companyName: clients.companyName,
       region: clients.region,
       phoneE164: clients.phoneE164,
+      // Carried so the meeting form can say, at the moment of choosing,
+      // whether this client can actually be emailed the invite.
+      email: clients.email,
     })
     .from(clients)
     .where(inOrg(clients, actor))

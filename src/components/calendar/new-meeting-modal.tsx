@@ -253,24 +253,51 @@ export function NewMeetingModal({
                     label="Client"
                     help={
                       clients.length === 0
-                        ? 'No clients yet. Client records arrive in Phase 4.'
-                        : 'Sets the suggested platform. You can change it.'
+                        ? 'No clients yet — add one on the Clients screen first.'
+                        : 'Who the meeting is for. Sets the suggested platform, and receives the invite by email.'
                     }
                   >
-                    <select
-                      name="clientId"
-                      value={clientId}
-                      onChange={(e) => setClientId(e.target.value)}
-                      className={CONTROL}
-                      required
-                    >
-                      <option value="">Choose a client</option>
-                      {clients.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.companyName}
-                        </option>
-                      ))}
-                    </select>
+                    {/* Picked from a list, like the attendees below it, rather
+                        than a dropdown — the two choices are the same kind of
+                        choice and were being made to look different.
+
+                        Radios, not checkboxes: a meeting has one client. The
+                        schema says so (§4.1.1's discriminated union) and a
+                        checkbox that silently only keeps the last tick would
+                        be a control that lies about what it does. */}
+                    <div className="max-h-36 overflow-auto rounded-sm border border-rule">
+                      {clients.length === 0 ? (
+                        <p className="px-3 py-2.5 text-label text-slate">
+                          No clients on file.
+                        </p>
+                      ) : (
+                        clients.map((c) => (
+                          <label
+                            key={c.id}
+                            className="flex h-9 cursor-pointer items-center justify-between gap-2 border-b border-rule px-3 last:border-b-0"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <input
+                                type="radio"
+                                name="clientId"
+                                value={c.id}
+                                checked={clientId === c.id}
+                                onChange={() => setClientId(c.id)}
+                                required
+                              />
+                              <span className="truncate text-label">{c.companyName}</span>
+                            </span>
+                            {/* The address the invite goes to, shown at the
+                                moment of choosing — a client with no email on
+                                file cannot be emailed, and finding that out
+                                after the meeting is created is too late. */}
+                            <span className="shrink-0 text-micro uppercase text-slate">
+                              {c.email ? c.region : 'No email'}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
                   </Field>
                 )}
 

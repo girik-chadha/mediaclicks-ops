@@ -46,6 +46,20 @@ export function CalendarView({
   todayHref: string
 }) {
   const [modalOpen, setModalOpen] = useState(false)
+
+  /**
+   * "New meeting" pressed from another screen arrives as ?new=1, because a
+   * click on Home has to survive a navigation to get here. The parameter is
+   * stripped once it has been acted on, so a refresh or a back-button does
+   * not reopen a modal the person already closed.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('new') !== '1') return
+    setModalOpen(true)
+    url.searchParams.delete('new')
+    window.history.replaceState(null, '', url.pathname + url.search)
+  }, [])
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<MeetingDto | null>(null)
   const [toast, setToast] = useState<string | null>(null)

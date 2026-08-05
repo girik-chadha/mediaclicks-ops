@@ -54,7 +54,7 @@ export function DayLog({
       <div className="min-w-[620px] max-w-[1440px] p-6">
         <p className="font-display text-display-sm">Nothing scheduled today.</p>
         <a
-          href="/calendar"
+          href="/calendar?new=1"
           className="mt-4 inline-flex h-10 items-center rounded-sm btn-signal px-4 text-body font-semibold"
         >
           + New meeting
@@ -271,7 +271,7 @@ function NextUp({
           )}
 
           <a
-            href="/calendar"
+            href="/calendar?new=1"
             onClick={(e) => {
               if (!onOpen) return
               e.preventDefault()

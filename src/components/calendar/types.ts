@@ -29,4 +29,10 @@ export interface ClientDto {
   id: string
   companyName: string
   region: 'domestic' | 'international'
+  /**
+   * Whether there is an address to send the invite to. Carried so the
+   * picker can say "No email" beside a client at the moment of choosing —
+   * discovering it after the meeting exists is too late to act on.
+   */
+  email: string | null
 }

@@ -7,17 +7,41 @@ import { useNow } from '@/components/shell/use-now'
 import { blockStyle, isTimeCritical, meetingState } from './encoding'
 import type { MeetingDto } from './types'
 
-/** 07:00–20:00 in 56px rows, with a 64px hour gutter — the design's grid. */
-const FIRST_HOUR = 7
-const LAST_HOUR = 20
-const ROW = 56
+/**
+ * The window the grid draws, and how tall an hour is.
+ *
+ * 07:00–20:00 covers a working day, but a meeting outside it used to be
+ * clamped to the edge — which piled every early meeting on top of the others
+ * at row zero, unreadable and all claiming the same slot. The window now
+ * stretches to contain whatever is actually there, so nothing is drawn in
+ * the wrong place to keep it on screen.
+ *
+ * 72px per hour rather than the design's 56. At 56 a thirty-minute meeting
+ * is 28 tall, which is shorter than the line of text inside it; the design
+ * mock had one or two blocks per day and a real week does not.
+ */
+const DEFAULT_FIRST_HOUR = 7
+const DEFAULT_LAST_HOUR = 20
+const ROW = 72
 const GUTTER = 64
 
-const HOURS = Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => FIRST_HOUR + i)
 const DAY_NAMES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-const GRID_HEIGHT = HOURS.length * ROW
 
-const topFor = (minutes: number) => ((minutes - FIRST_HOUR * 60) / 60) * ROW
+function windowFor(meetings: MeetingDto[], zone: string): { first: number; last: number } {
+  let first = DEFAULT_FIRST_HOUR
+  let last = DEFAULT_LAST_HOUR
+
+  for (const m of meetings) {
+    const startHour = Math.floor(minutesIntoDay(new Date(m.startsAt), zone) / 60)
+    // A meeting ending exactly on the hour needs no extra row.
+    const endMinutes = minutesIntoDay(new Date(m.endsAt), zone)
+    const endHour = Math.ceil(endMinutes / 60)
+    if (startHour < first) first = startHour
+    if (endHour > last) last = endHour
+  }
+
+  return { first: Math.max(0, first), last: Math.min(24, last) }
+}
 
 interface Positioned {
   meeting: MeetingDto
@@ -35,7 +59,7 @@ interface Positioned {
  * cluster, so an isolated afternoon meeting stays full width even if two
  * calls collided that morning.
  */
-function layout(dayMeetings: MeetingDto[], zone: string): Positioned[] {
+function layout(dayMeetings: MeetingDto[], zone: string, firstHour: number): Positioned[] {
   const sorted = [...dayMeetings].sort(
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   )
@@ -67,20 +91,14 @@ function layout(dayMeetings: MeetingDto[], zone: string): Positioned[] {
       }
     }
 
+    const offset = (minutes: number) => ((minutes - firstHour * 60) / 60) * ROW
     const width = 100 / columns
+    const top = offset(minutesIntoDay(new Date(m.startsAt), zone))
+    const bottom = offset(minutesIntoDay(new Date(m.endsAt), zone))
     return {
       meeting: m,
-      // Clamped to the visible window. A meeting that starts before 07:00
-      // has a negative offset, and the scroll container simply cuts the top
-      // off it — the block is there, half of it is above the grid, and the
-      // title is the half you lose. Clamping keeps it visible and clickable
-      // at the edge instead.
-      top: Math.max(0, topFor(minutesIntoDay(new Date(m.startsAt), zone))),
-      height: Math.max(
-        22,
-        Math.min(GRID_HEIGHT, topFor(minutesIntoDay(new Date(m.endsAt), zone))) -
-          Math.max(0, topFor(minutesIntoDay(new Date(m.startsAt), zone))),
-      ),
+      top,
+      height: Math.max(22, bottom - top),
       left: lane[i]! * width,
       width,
     }
@@ -102,6 +120,14 @@ export function WeekGrid({
   const [hovered, setHovered] = useState<string | null>(null)
   const weekStart = new Date(weekStartIso)
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i, zone))
+
+  // Derived from the week actually being shown, so an early or late meeting
+  // is drawn where it belongs instead of clamped onto the edge with
+  // everything else that fell outside the default window.
+  const { first: firstHour, last: lastHour } = windowFor(meetings, zone)
+  const hours = Array.from({ length: lastHour - firstHour }, (_, i) => firstHour + i)
+  const gridHeight = hours.length * ROW
+  const topFor = (minutes: number) => ((minutes - firstHour * 60) / 60) * ROW
 
   return (
     <div className="min-w-[820px] bg-surface">
@@ -133,7 +159,7 @@ export function WeekGrid({
       <div className="relative flex min-w-[820px]">
         {/* Hour gutter — label at the top of each row, right aligned */}
         <div className="shrink-0 border-r border-rule" style={{ width: GUTTER }}>
-          {HOURS.map((h) => (
+          {hours.map((h) => (
             <div
               key={h}
               className="border-t border-rule px-2 py-1 text-right font-mono text-[0.6875rem] tracking-[-0.02em] text-slate"
@@ -148,16 +174,16 @@ export function WeekGrid({
           const dayMeetings = meetings.filter((m) =>
             sameZonedDay(new Date(m.startsAt), day, zone),
           )
-          const positioned = layout(dayMeetings, zone)
+          const positioned = layout(dayMeetings, zone, firstHour)
           const isToday = now ? sameZonedDay(day, now, zone) : false
 
           return (
             <div
               key={dayIndex}
               className="relative min-w-0 flex-1 border-r border-rule"
-              style={{ height: GRID_HEIGHT }}
+              style={{ height: gridHeight }}
             >
-              {HOURS.map((h) => (
+              {hours.map((h) => (
                 <div key={h} className="border-t border-rule" style={{ height: ROW }} />
               ))}
 

@@ -60,6 +60,7 @@ export default async function CalendarPage({
           id: c.id,
           companyName: c.companyName,
           region: c.region,
+          email: c.email,
         }))}
         weekStartIso={weekStart.toISOString()}
         zone={zone}
