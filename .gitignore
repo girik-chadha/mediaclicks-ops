@@ -23,3 +23,7 @@ Thumbs.db
 # point into one developer's home directory. The skills themselves live in
 # .agents/skills/ and are committed; re-run the installer to relink.
 .claude/skills/
+
+# Real people's email addresses. Kept out of git even though the file
+# is only a list of inputs to scripts/add-team.ts.
+team.txt
