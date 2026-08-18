@@ -43,6 +43,13 @@
       "when": 1785889942964,
       "tag": "0005_lock_down_public_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787057419347,
+      "tag": "0006_password_reset",
+      "breakpoints": true
     }
   ]
 }
