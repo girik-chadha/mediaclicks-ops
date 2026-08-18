@@ -3,6 +3,7 @@
 import { decideApproval } from '@/server/assistant/approvals'
 
 import { revalidatePath } from 'next/cache'
+import { reportUnexpected } from '@/server/report'
 import {
   createChannel,
   joinChannel,
@@ -21,6 +22,7 @@ function messageFor(error: unknown): string {
     // Validation messages are already written in the product's voice.
     if (error.message && error.message.length < 120) return error.message
   }
+  reportUnexpected('chat action', error)
   return 'That did not send. Try again.'
 }
 

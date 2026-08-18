@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { meetingInput } from '@/lib/meetings/schema'
+import { reportUnexpected } from '@/server/report'
+import { generatesLink, meetingInput } from '@/lib/meetings/schema'
 import { fromWallClock } from '@/lib/time'
 import { requireActor } from '@/server/auth/session'
 import { cancelMeeting, createMeeting, updateMeeting } from '@/server/meetings/mutations'
@@ -47,6 +48,12 @@ async function parseForm(form: FormData) {
 
   const attendeeIds = form.getAll('attendeeIds').map(String).filter(Boolean)
 
+  // Cast, not re-derived: generatesLink is the single place that knows which
+  // platforms carry a link (schema.ts), and an invalid name here is caught a
+  // few lines below by the enum the same schema declares.
+  const provider = (fieldOf(form, 'conferencingProvider') ??
+    'none') as Parameters<typeof generatesLink>[0]
+
   const parsed = meetingInput.safeParse({
     type,
     title: fieldOf(form, 'title'),
@@ -54,10 +61,13 @@ async function parseForm(form: FormData) {
     startsAt: toInstant(start),
     endsAt: toInstant(end),
     attendeeIds: attendeeIds.length > 0 ? attendeeIds : [actor.id],
-    conferencingProvider: fieldOf(form, 'conferencingProvider') ?? 'none',
-    // Pasted by the organiser. Ignored unless the platform is link-based, so
-    // switching to WhatsApp does not carry a stale Zoom link along with it.
-    conferenceUrl: fieldOf(form, 'conferenceUrl'),
+    conferencingProvider: provider,
+    // Pasted by the organiser, and genuinely dropped when the platform has
+    // no link — which is what the comment here always claimed and the code
+    // did not do. Editing a Zoom call down to WhatsApp kept the dead Zoom
+    // URL in the payload, and the schema rejects that combination, so the
+    // save failed on a field the person had already cleared from the form.
+    conferenceUrl: generatesLink(provider) ? fieldOf(form, 'conferenceUrl') : undefined,
     ...(type === 'client' ? { clientId: fieldOf(form, 'clientId') } : {}),
   })
 
@@ -148,6 +158,12 @@ export async function cancelMeetingAction(id: string): Promise<{ error?: string 
  * ForbiddenError and MeetingNotFoundError already carry a sentence written in
  * §8's voice. Anything else gets a generic line — an unexpected error's
  * message is for the logs, not the reader.
+ *
+ * "For the logs" was aspirational: nothing logged it. An unexpected failure
+ * showed the reader six words and told the developer nothing at all, which
+ * is the worst of both — the person cannot act on it and neither can anyone
+ * fixing it. Server actions run on the server, so console.error lands in the
+ * terminal running `next dev` and in the platform's logs once deployed.
  */
 function messageFor(error: unknown): string {
   if (error instanceof Error) {
@@ -155,5 +171,7 @@ function messageFor(error: unknown): string {
       return error.message
     }
   }
+
+  reportUnexpected('meeting action', error)
   return 'That did not save. Try again.'
 }

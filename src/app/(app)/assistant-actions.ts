@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { reportUnexpected } from '@/server/report'
 import type { PendingSchedule, PerformedAction } from '@/lib/assistant/plan'
 import { requireActor } from '@/server/auth/session'
 import { performPlan } from '@/server/assistant/execute'
@@ -63,7 +64,8 @@ export async function askAssistant(
       token: reply.actions.length > 0 ? seal(actor.id, reply.actions) : null,
       context: reply.pending ? seal(actor.id, reply.pending) : null,
     }
-  } catch {
+  } catch (error) {
+    reportUnexpected('assistant ask', error)
     return { ok: false, error: 'Something went wrong working that out. Try again.' }
   }
 }

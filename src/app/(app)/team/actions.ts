@@ -2,6 +2,7 @@
 
 import { and, eq, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { reportUnexpected } from '@/server/report'
 import { z } from 'zod'
 import { hashPassword } from '@/server/auth/password'
 import { requirePermission } from '@/server/auth/require'
@@ -148,10 +149,113 @@ export async function createUser(
         after: { email, fullName, roles: ['Member'] },
       })
     })
-  } catch {
+  } catch (error) {
+    reportUnexpected('team action', error)
     return { error: 'That account could not be created. Try again.' }
   }
 
   revalidatePath('/team')
   return { created: email }
+}
+
+/* ── Custom roles (§3) ─────────────────────────────────────────────────
+   The permission vocabulary is fixed in code; roles are the per-org
+   bundles of it, so an agency can name the ones it actually has — GFX,
+   VFX, Editor — instead of bending everyone into Owner/Manager/Member.
+   All four are gated on `role.manage` inside the mutation layer.        */
+
+export interface RoleFormState {
+  error?: string
+  saved?: string
+}
+
+/** Every error these can raise is already written for a person to read. */
+function roleMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    const named = [
+      'ForbiddenError',
+      'RoleInUseError',
+      'SystemRoleError',
+      'DuplicateRoleError',
+    ]
+    if (named.includes(error.name)) return error.message
+    // The mutations throw plain Errors with reader-ready sentences for the
+    // last-owner and last-admin guards; length is the only signal that a
+    // message was written rather than thrown by a driver.
+    if (error.message && error.message.length < 160) return error.message
+  }
+  reportUnexpected('role action', error)
+  return fallback
+}
+
+function revalidateTeam(): void {
+  revalidatePath('/team')
+  // A permission change alters what every screen offers, and the nav hides
+  // Team itself from anyone without user.invite.
+  revalidatePath('/calendar')
+  revalidatePath('/clients')
+  revalidatePath('/home')
+}
+
+export async function createRoleAction(
+  _prev: RoleFormState,
+  form: FormData,
+): Promise<RoleFormState> {
+  const name = String(form.get('name') ?? '')
+  const keys = form.getAll('permissionKeys').map(String)
+
+  try {
+    const { createRole } = await import('@/server/team/roles')
+    await createRole(name, keys)
+  } catch (error) {
+    return { error: roleMessage(error, 'That role could not be created.') }
+  }
+
+  revalidateTeam()
+  return { saved: name.trim() }
+}
+
+export async function setRolePermissionsAction(
+  _prev: RoleFormState,
+  form: FormData,
+): Promise<RoleFormState> {
+  const roleId = String(form.get('roleId') ?? '')
+  const keys = form.getAll('permissionKeys').map(String)
+
+  try {
+    const { setRolePermissions } = await import('@/server/team/roles')
+    await setRolePermissions(roleId, keys)
+  } catch (error) {
+    return { error: roleMessage(error, 'Those permissions could not be saved.') }
+  }
+
+  revalidateTeam()
+  return { saved: 'Permissions updated' }
+}
+
+export async function renameRoleAction(
+  roleId: string,
+  name: string,
+): Promise<RoleFormState> {
+  try {
+    const { renameRole } = await import('@/server/team/roles')
+    await renameRole(roleId, name)
+  } catch (error) {
+    return { error: roleMessage(error, 'That role could not be renamed.') }
+  }
+
+  revalidateTeam()
+  return { saved: name.trim() }
+}
+
+export async function deleteRoleAction(roleId: string): Promise<RoleFormState> {
+  try {
+    const { deleteRole } = await import('@/server/team/roles')
+    await deleteRole(roleId)
+  } catch (error) {
+    return { error: roleMessage(error, 'That role could not be removed.') }
+  }
+
+  revalidateTeam()
+  return { saved: 'Role removed' }
 }
