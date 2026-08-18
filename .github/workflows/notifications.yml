@@ -7,8 +7,22 @@ name: Notifications
 # minutes. That is fine here: the worker asks "is this due yet", not "is it
 # exactly now", and the unique index makes a late or repeated tick harmless.
 on:
+  # Hourly, not every five minutes.
+  #
+  # GitHub bills a one-minute minimum per run, and this repository is
+  # private, so it draws on the 2,000 free minutes a month. At */5 that is
+  # 8,640 runs — 4.3x the whole allowance, spent entirely on a curl. The
+  # worker would have stopped partway through every month, silently, which
+  # is the one thing a reminder system cannot do.
+  #
+  # Hourly costs ~720 minutes and leaves room for CI. It is a safety net,
+  # not the primary schedule: reminders need minutes, not hours, so a real
+  # deployment points an external cron service at the same endpoint every
+  # five minutes (see docs/runbook-go-live.md). Both can run — the unique
+  # index on (user_id, type, meeting_id, scheduled_for) makes a repeated
+  # tick insert nothing.
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 # Never let two ticks overlap. The database would cope — that is what the

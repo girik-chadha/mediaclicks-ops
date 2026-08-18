@@ -1,0 +1,89 @@
+name: Backup
+
+# The backup that free tiers do not give you.
+#
+# Supabase's Free plan has no downloadable backups at all, and Neon's Free
+# plan keeps six hours of history. Six hours covers "I deleted that by
+# mistake"; it does not cover "the project was deleted" or "we need last
+# month's numbers". This is the one that does.
+#
+# A dump of this database is 17 small tables — kilobytes gzipped — so the
+# 500 MB of artifact storage on GitHub's free plan holds years of dailies at
+# the 90-day retention set below.
+
+on:
+  schedule:
+    # 02:00 UTC = 06:00 Dubai. After the working day, before anyone starts.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install a matching pg_dump
+        # The runner's bundled client is older than the server, and pg_dump
+        # refuses to dump a newer server than itself. PGDG has current
+        # versions; pinning to 17 covers Neon and Supabase today.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret is not set — nothing to back up." >&2
+            exit 1
+          fi
+
+          STAMP=$(date -u +%Y-%m-%d)
+
+          # --no-owner / --no-privileges: the dump has to restore into a
+          # different provider with different role names. Ownership and
+          # grants are recreated by the migrations, not carried across.
+          #
+          # Pooled connections cannot hold the consistent snapshot pg_dump
+          # wants, so this asks for the direct endpoint if one is offered;
+          # falls back to whatever the URL is.
+          DIRECT="${DATABASE_URL/-pooler/}"
+          pg_dump "$DIRECT" \
+            --no-owner --no-privileges --format=plain \
+            2>/tmp/dump.err \
+          | gzip -9 > "mediaclicks-${STAMP}.sql.gz" \
+          || { echo "--- pg_dump failed ---"; cat /tmp/dump.err; exit 1; }
+
+          SIZE=$(stat -c%s "mediaclicks-${STAMP}.sql.gz")
+          echo "wrote mediaclicks-${STAMP}.sql.gz (${SIZE} bytes)"
+
+          # A dump that restores nothing is worse than no dump, because it
+          # looks like one. Anything under a kilobyte is an empty file with
+          # a header on it.
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "Dump is suspiciously small — treating as a failure." >&2
+            gzip -dc "mediaclicks-${STAMP}.sql.gz" | head -40
+            exit 1
+          fi
+
+          # Prove it contains the tables it should, not just bytes.
+          for t in users meetings clients audit_log; do
+            gzip -dc "mediaclicks-${STAMP}.sql.gz" | grep -q "CREATE TABLE public.$t" \
+              || { echo "Dump is missing table $t" >&2; exit 1; }
+          done
+          echo "verified: schema for users, meetings, clients, audit_log present"
+
+      - name: Keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: '*.sql.gz'
+          retention-days: 90
+          if-no-files-found: error

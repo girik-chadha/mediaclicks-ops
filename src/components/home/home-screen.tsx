@@ -53,6 +53,7 @@ export function HomeScreen({
   firstName,
   meId,
   approvals,
+  remindersStuck,
 }: {
   meetings: MeetingDto[]
   activity: ActivityDto[]
@@ -61,6 +62,9 @@ export function HomeScreen({
   firstName: string
   meId: string
   approvals: ApprovalDto[]
+  /** Set when reminders are queued but not going out — see
+   *  src/server/notifications/health.ts. */
+  remindersStuck: { count: number; waiting: string } | null
 }) {
   const now = useNow()
   const reference = now ?? new Date()
@@ -94,8 +98,21 @@ export function HomeScreen({
   )
 
   const needs = [
-    // First, because it is the only item where somebody else is waiting on
-    // this person rather than the other way round.
+    // Above everything, because it is not a task — it is the machinery that
+    // delivers the other tasks having stopped. A person who cannot see this
+    // is trusting reminders that are not being sent.
+    ...(remindersStuck
+      ? [
+          {
+            kind: 'Reminders',
+            what: `${remindersStuck.count} reminder${remindersStuck.count === 1 ? '' : 's'} queued but not sent — the worker has not run for ${remindersStuck.waiting}.`,
+            meta: 'Check the cron',
+            border: '2px solid var(--live)',
+          },
+        ]
+      : []),
+    // First of the real tasks, because it is the only one where somebody
+    // else is waiting on this person rather than the other way round.
     ...approvals.map((a) => ({
       kind: 'Approval',
       what: `${a.requestedByName} wants to ${a.summary.toLowerCase()}`,
