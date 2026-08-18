@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation'
 import { ChatView, type MessageDto } from '@/components/chat/chat-view'
 import { PageHeader } from '@/components/shell/page-header'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import {
   isOnline,
   listChattablePeople,
@@ -16,7 +15,7 @@ export default async function ChatPage({
   searchParams: Promise<{ c?: string }>
 }) {
   const actor = await getActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirectStaleSession()
 
   const { c } = await searchParams
 

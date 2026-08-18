@@ -57,6 +57,24 @@ export async function listMeetingsInRange(
     .where(and(inOrg(meetings, actor), lt(meetings.startsAt, to), gte(meetings.endsAt, from)))
     .orderBy(asc(meetings.startsAt))
 
+  return withAttendees(rows)
+}
+
+/** The selected columns, before attendees are attached. */
+type MeetingBase = Omit<MeetingRow, 'attendeeIds' | 'attendees'>
+
+/**
+ * Attaches attendees to already-selected meeting rows.
+ *
+ * Split out so a single meeting can be fetched by id without going through a
+ * date range. It used to do that by asking for every meeting between the
+ * epoch and `new Date(8.64e15)` and picking one out of the result — which
+ * scanned the whole table on every edit, and did not work at all: that date
+ * is the year 275760, and Postgres rejects the parameter outright with
+ * "time zone displacement out of range". Every update and every cancellation
+ * failed on it, before touching a single row.
+ */
+async function withAttendees(rows: MeetingBase[]): Promise<MeetingRow[]> {
   if (rows.length === 0) return []
 
   const attendeeRows = await db
@@ -114,21 +132,45 @@ export async function listVisibleMeetings(
   return all.filter(can)
 }
 
+/**
+ * One meeting by id, org-scoped.
+ *
+ * Fetches the row itself rather than filtering a full-table read, which is
+ * both what makes it correct and what makes it cheap: this is on the path of
+ * every edit, cancellation and reassignment, including the assistant's.
+ *
+ * Org-scoped in the WHERE clause, so a meeting belonging to another
+ * organisation is indistinguishable from one that does not exist. Visibility
+ * *within* the org is the caller's `can()` check, not this function's — see
+ * listVisibleMeetings for why that rule lives in one place.
+ */
 export async function getMeeting(
   actor: SessionActor,
   id: string,
 ): Promise<MeetingRow | null> {
-  const from = new Date(0)
-  const to = new Date(8.64e15)
   const rows = await db
-    .select({ id: meetings.id })
+    .select({
+      id: meetings.id,
+      title: meetings.title,
+      description: meetings.description,
+      startsAt: meetings.startsAt,
+      endsAt: meetings.endsAt,
+      type: meetings.type,
+      status: meetings.status,
+      conferencingProvider: meetings.conferencingProvider,
+      conferenceUrl: meetings.conferenceUrl,
+      createdByUserId: meetings.createdByUserId,
+      clientId: meetings.clientId,
+      clientName: clients.companyName,
+      clientPhone: clients.phoneE164,
+    })
     .from(meetings)
+    .leftJoin(clients, eq(clients.id, meetings.clientId))
     .where(and(inOrg(meetings, actor), eq(meetings.id, id)))
     .limit(1)
 
-  if (rows.length === 0) return null
-  const found = await listMeetingsInRange(actor, from, to)
-  return found.find((m) => m.id === id) ?? null
+  const [meeting] = await withAttendees(rows)
+  return meeting ?? null
 }
 
 export interface Conflict {

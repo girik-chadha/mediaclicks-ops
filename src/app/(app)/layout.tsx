@@ -1,11 +1,11 @@
-import { redirect } from 'next/navigation'
 import { AssistantPanel } from '@/components/assistant/assistant-panel'
 import { MobileNav } from '@/components/shell/mobile-nav'
 import { Nav, type NavItem } from '@/components/shell/nav'
 import { Rail } from '@/components/shell/rail'
+import { ZoneProvider } from '@/components/shell/zone-context'
 import { can } from '@/lib/permissions'
 import { signOut } from '@/server/auth'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { touchPresence } from '@/server/chat/mutations'
 import { navCounts } from '@/server/shell/nav-counts'
 import { loadPaletteItems } from './palette-action'
@@ -15,7 +15,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Middleware already redirects unauthenticated traffic; this is the
   // authoritative check. Middleware decides what you see, not what you may do.
-  if (!actor) redirect('/login')
+  //
+  // Not /login: reaching here means the cookie is authentic but names a user
+  // this database has never had, and middleware would send an authentic
+  // cookie straight back. See src/app/api/stale-session/route.ts.
+  if (!actor) redirectStaleSession()
 
   async function handleSignOut() {
     'use server'
@@ -59,6 +63,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    // The actor's zone, for the shell. Everything below the header already
+    // receives a zone alongside the rows it renders; the rail, the clock and
+    // the date stamp are handed no rows at all, so without this they fell
+    // back to the browser's zone and stopped tracking the Profile setting.
+    <ZoneProvider zone={actor.timezone}>
     <div className="flex h-dvh w-full overflow-hidden bg-paper text-ink">
       {/* Vertical rail on desktop; a horizontal strip under the header on
           mobile, where 56px of width is not affordable (brief §4). */}
@@ -94,5 +103,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           that unmounts on navigation would lose a half-finished plan. */}
       <AssistantPanel />
     </div>
+    </ZoneProvider>
   )
 }

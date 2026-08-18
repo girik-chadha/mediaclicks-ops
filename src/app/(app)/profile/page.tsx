@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/shell/page-header'
 import { PERMISSION_KEYS } from '@/lib/permissions'
 import { signOut } from '@/server/auth'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { ProfileForm } from './profile-form'
 
 function initialsOf(name: string): string {
@@ -12,7 +11,7 @@ function initialsOf(name: string): string {
 
 export default async function ProfilePage() {
   const actor = await getActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirectStaleSession()
 
   async function handleSignOut() {
     'use server'

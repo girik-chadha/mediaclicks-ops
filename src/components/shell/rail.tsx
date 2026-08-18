@@ -2,6 +2,7 @@
 
 import { LogoMark } from './logo'
 import { dayFraction, formatClock, timezoneLabel, useNow } from './use-now'
+import { useZone } from './zone-context'
 
 /**
  * The Rail — the product's spine (brief §4).
@@ -39,6 +40,9 @@ function Playhead({ percent, orientation }: { percent: number; orientation: 'ver
 
 export function Rail({ orientation = 'vertical' }: { orientation?: 'vertical' | 'horizontal' }) {
   const now = useNow()
+  // The signed-in person's zone, or the browser's on the login screen where
+  // there is nobody to have a preference yet.
+  const zone = useZone()
 
   if (orientation === 'horizontal') {
     return (
@@ -52,14 +56,14 @@ export function Rail({ orientation = 'vertical' }: { orientation?: 'vertical' | 
               </div>
             </div>
           ))}
-          {now && <Playhead percent={dayFraction(now)} orientation="horizontal" />}
+          {now && <Playhead percent={dayFraction(now, zone)} orientation="horizontal" />}
         </div>
         <div className="flex shrink-0 items-baseline gap-1.5">
           <span className="font-mono text-[0.6875rem] font-medium leading-none tracking-[-0.06em] tabular-nums text-live">
-            {now ? formatClock(now) : '  :  '}
+            {now ? formatClock(now, zone) : '  :  '}
           </span>
           <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.08em] text-slate">
-            {now ? timezoneLabel(now) : ''}
+            {now ? timezoneLabel(now, zone) : ''}
           </span>
         </div>
       </div>
@@ -87,17 +91,17 @@ export function Rail({ orientation = 'vertical' }: { orientation?: 'vertical' | 
             </div>
           ))}
 
-          {now && <Playhead percent={dayFraction(now)} orientation="vertical" />}
+          {now && <Playhead percent={dayFraction(now, zone)} orientation="vertical" />}
         </div>
       </div>
 
       <div className="border-t border-rule py-2.5 text-center">
         <div className="font-mono text-[0.6875rem] font-medium leading-[1.1] tracking-[-0.06em] tabular-nums text-live">
           {/* Non-breaking spaces hold the line's height before mount. */}
-          {now ? formatClock(now) : '  :  '}
+          {now ? formatClock(now, zone) : '  :  '}
         </div>
         <div className="mt-1 text-[0.5625rem] font-semibold uppercase tracking-[0.08em] text-slate">
-          {now ? timezoneLabel(now) : ' '}
+          {now ? timezoneLabel(now, zone) : ' '}
         </div>
       </div>
     </div>

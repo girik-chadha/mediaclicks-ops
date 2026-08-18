@@ -8,7 +8,7 @@ import {
   type MeetingFormState,
 } from '@/app/(app)/calendar/actions'
 import { outcomeSummary, providerLabel } from '@/lib/meetings/schema'
-import { overlaps, toWallClock } from '@/lib/time'
+import { fromWallClock, overlaps, toWallClock } from '@/lib/time'
 import type { ClientDto, MeetingDto, PersonDto } from './types'
 
 type MeetingType = '' | 'internal' | 'client'
@@ -161,11 +161,27 @@ export function NewMeetingModal({
       ? (['google_meet', 'zoom', 'whatsapp'] as const)
       : (['google_meet', 'zoom', 'whatsapp', 'none'] as const)
 
-  /** Live conflict indicator (§4.1.1 step 3). Warns, never blocks. */
+  /**
+   * Live conflict indicator (§4.1.1 step 3). Warns, never blocks.
+   *
+   * Read in the actor's zone, not the browser's. `new Date("2026-08-06T18:00")`
+   * means six in the evening *wherever the laptop is*, so someone whose
+   * profile says Dubai but who is sitting in London was being warned about
+   * the wrong hour — and, worse, not warned about the right one. The server
+   * has always resolved the same fields through fromWallClock on submit
+   * (calendar/actions.ts); this is the indicator catching up with it.
+   */
   const conflicts = useMemo(() => {
     if (!date || !start || !end) return new Set<string>()
-    const s = new Date(`${date}T${start}`)
-    const e = new Date(`${date}T${end}`)
+    const toInstant = (hhmm: string) => {
+      const [y, mo, d] = date.split('-').map(Number)
+      const [hh, mi] = hhmm.split(':').map(Number)
+      if ([y, mo, d, hh, mi].some((n) => n === undefined || Number.isNaN(n))) return null
+      return fromWallClock({ year: y!, month: mo!, day: d!, hour: hh!, minute: mi! }, zone)
+    }
+    const s = toInstant(start)
+    const e = toInstant(end)
+    if (!s || !e) return new Set<string>()
     const busy = new Set<string>()
     for (const m of meetings) {
       if (m.status === 'cancelled') continue
@@ -173,7 +189,7 @@ export function NewMeetingModal({
       for (const a of m.attendees) if (attendees.includes(a.id)) busy.add(a.id)
     }
     return busy
-  }, [date, start, end, attendees, meetings])
+  }, [date, start, end, attendees, meetings, zone])
 
   function setDuration(minutes: number) {
     const [h, m] = start.split(':').map(Number)
@@ -217,6 +233,21 @@ export function NewMeetingModal({
 
         <form action={formAction} className="p-6">
           {editing && <input type="hidden" name="id" value={editing.id} />}
+
+          {/* At the top, and loud.
+              This used to sit below the buttons in slate, at the end of a
+              form tall enough to scroll — so a refused save looked exactly
+              like a save that did nothing: the modal stayed open, and the
+              reason was off-screen in the same colour as the help text. */}
+          {state.error && (
+            <p
+              role="alert"
+              className="mb-4 rounded-sm border border-live px-3 py-2 text-label font-medium text-live"
+              style={{ borderLeftWidth: 2 }}
+            >
+              {state.error}
+            </p>
+          )}
 
           {/* Step 1 — nothing else renders until a type is chosen (§4.1.1). */}
           <div className="text-micro uppercase text-slate">Meeting type</div>
@@ -422,7 +453,7 @@ export function NewMeetingModal({
                           <span className="flex min-w-0 items-center gap-2">
                             <input
                               type="checkbox"
-                              name="attendeeIds"
+                              name={locked ? undefined : 'attendeeIds'}
                               value={p.id}
                               checked={checked}
                               disabled={locked}
@@ -434,6 +465,16 @@ export function NewMeetingModal({
                                 )
                               }
                             />
+                            {/* A disabled input submits nothing. Without this,
+                                editing a meeting you may not re-staff quietly
+                                removed everyone else from it: the boxes were
+                                ticked on screen, sent nothing, and the server
+                                fell back to "just you". The value is carried
+                                in a hidden field so what is shown is what is
+                                saved. */}
+                            {locked && checked && (
+                              <input type="hidden" name="attendeeIds" value={p.id} />
+                            )}
                             <span className="truncate text-label">
                               {p.fullName}
                               {p.id === meId && <span className="text-slate"> (you)</span>}
@@ -494,11 +535,6 @@ export function NewMeetingModal({
             </>
           )}
 
-          {state.error && (
-            <p role="alert" className="mt-4 text-label text-slate">
-              {state.error}
-            </p>
-          )}
         </form>
       </div>
     </div>

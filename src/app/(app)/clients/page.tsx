@@ -1,13 +1,12 @@
-import { redirect } from 'next/navigation'
 import { ClientsView, type ClientDetail } from '@/components/clients/clients-view'
 import { PageHeader } from '@/components/shell/page-header'
 import { can } from '@/lib/permissions'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { listClientHistory, listClients } from '@/server/clients/queries'
 
 export default async function ClientsPage() {
   const actor = await getActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirectStaleSession()
 
   const rows = await listClients(actor)
 

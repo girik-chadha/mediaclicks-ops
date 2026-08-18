@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { providerCode } from '@/lib/meetings/schema'
 import { addDays, formatRange, minutesIntoDay, sameZonedDay, toWallClock } from '@/lib/time'
 import { useNow } from '@/components/shell/use-now'
-import { blockStyle, isTimeCritical, meetingState } from './encoding'
+import { blockStyle, isTimeCritical, leftRule, meetingState } from './encoding'
 import type { MeetingDto } from './types'
 
 /**
@@ -208,9 +208,12 @@ export function WeekGrid({
                       padding: '5px 6px',
                       background: style.background,
                       border: style.border,
-                      borderLeft: style.borderLeft,
-                      // Hover thickens the left rule only — no lift, no shadow (§7).
-                      borderLeftWidth: isHovered ? 3 : 2,
+                      // Hover thickens the left rule only — no lift, no shadow
+                      // (§7). Composed as one shorthand rather than a
+                      // shorthand plus borderLeftWidth: mixing the two forms
+                      // for a single property makes the outcome depend on key
+                      // order, and React warns about it.
+                      borderLeft: leftRule(style, isHovered ? 3 : style.borderLeftWidth),
                       opacity: style.opacity,
                       transition:
                         'background 400ms linear, border-color 400ms linear, border-left-width 80ms linear, opacity 400ms linear',

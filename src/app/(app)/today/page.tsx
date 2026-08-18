@@ -1,14 +1,13 @@
-import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/shell/page-header'
 import { DayLog } from '@/components/today/day-log'
 import { addDays, startOfDay } from '@/lib/time'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { toMeetingDto, visibleTo } from '@/server/meetings/dto'
 import { listMeetingsInRange } from '@/server/meetings/queries'
 
 export default async function TodayPage() {
   const actor = await getActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirectStaleSession()
 
   const zone = actor.timezone
   const dayStart = startOfDay(new Date(), zone)

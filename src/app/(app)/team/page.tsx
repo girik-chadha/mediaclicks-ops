@@ -6,8 +6,16 @@ import { getActor } from '@/server/auth/session'
 import { db } from '@/server/db'
 import { permissions, rolePermissions, roles, userRoles, users } from '@/server/db/schema'
 import { inOrg } from '@/server/scope'
+import { RolesPanel, type RoleRow } from '@/components/team/roles-panel'
+import { listRoles } from '@/server/team/roles'
 import { CreateUserForm } from './create-user-form'
-import { setUserRoleAction } from './actions'
+import {
+  createRoleAction,
+  deleteRoleAction,
+  renameRoleAction,
+  setRolePermissionsAction,
+  setUserRoleAction,
+} from './actions'
 
 export default async function TeamPage() {
   const actor = await getActor()
@@ -78,6 +86,10 @@ export default async function TeamPage() {
 
   const ownerCount = [...byUser.values()].filter((v) => v.role === 'Owner').length
 
+  // The org's real roles, so the assignment dropdown offers custom ones and
+  // not just the three the system seeds.
+  const orgRoles: RoleRow[] = await listRoles(actor.orgId)
+
   const people: MatrixPerson[] = roster.map((p) => {
     const entry = byUser.get(p.id)
     return {
@@ -99,11 +111,24 @@ export default async function TeamPage() {
       <div className="min-h-0 flex-1 overflow-auto">
         <PermissionMatrix
           people={people}
+          roleNames={orgRoles.map((r) => r.name)}
           canManageRoles={can(actor, 'user.manage')}
           onSetRole={setUserRoleAction}
         />
 
-        <div className="min-w-[760px] max-w-[1440px] px-6 pb-8">
+        <div className="flex min-w-[760px] max-w-[1440px] flex-col gap-6 px-6 pb-8">
+          {/* Only for people who may actually change them; the mutations
+              check role.manage again regardless. */}
+          {can(actor, 'role.manage') && (
+            <RolesPanel
+              roles={orgRoles}
+              onCreate={createRoleAction}
+              onSetPermissions={setRolePermissionsAction}
+              onRename={renameRoleAction}
+              onDelete={deleteRoleAction}
+            />
+          )}
+
           <section className="rounded-sm border border-rule bg-surface p-4">
             <h2 className="text-micro uppercase text-slate">Add someone</h2>
             <div className="mt-3">

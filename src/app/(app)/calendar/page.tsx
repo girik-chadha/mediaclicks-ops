@@ -1,9 +1,8 @@
-import { redirect } from 'next/navigation'
 import { CalendarView } from '@/components/calendar/calendar-view'
 import { PageHeader } from '@/components/shell/page-header'
 import { can } from '@/lib/permissions'
 import { addDays, startOfWeek, toWallClock } from '@/lib/time'
-import { getActor } from '@/server/auth/session'
+import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { toMeetingDto, visibleTo } from '@/server/meetings/dto'
 import {
   listClients,
@@ -22,7 +21,7 @@ export default async function CalendarPage({
   searchParams: Promise<{ week?: string }>
 }) {
   const actor = await getActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirectStaleSession()
 
   const { week } = await searchParams
   const offset = Number.parseInt(week ?? '0', 10) || 0

@@ -29,7 +29,13 @@ const COLUMNS: { label: string; key: PermissionKey }[] = [
   { label: 'Roles', key: 'role.manage' },
 ]
 
-const PRESETS = ['Owner', 'Manager', 'Member'] as const
+/**
+ * The org's own roles, not a hardcoded three.
+ *
+ * This used to be `['Owner','Manager','Member']` written here, which meant a
+ * role the owner created was invisible in the dropdown that assigns roles —
+ * you could define a GFX role and never put anybody in it.
+ */
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -38,10 +44,13 @@ function initialsOf(name: string): string {
 
 export function PermissionMatrix({
   people,
+  roleNames,
   canManageRoles,
   onSetRole,
 }: {
   people: MatrixPerson[]
+  /** Every role in the org, custom ones included. */
+  roleNames: string[]
   canManageRoles: boolean
   onSetRole: (userId: string, roleName: string) => Promise<{ error?: string }>
 }) {
@@ -61,7 +70,7 @@ export function PermissionMatrix({
     <div className="min-w-[760px] max-w-[1440px] p-6">
       <div className="flex items-center gap-2">
         <span className="mr-2 text-micro uppercase text-slate">Role preset</span>
-        {PRESETS.map((preset) => {
+        {roleNames.map((preset) => {
           const active = highlight === preset
           return (
             <button
@@ -138,7 +147,7 @@ export function PermissionMatrix({
                       cursor: canManageRoles && !p.roleLocked ? 'pointer' : 'not-allowed',
                     }}
                   >
-                    {PRESETS.map((r) => (
+                    {roleNames.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
