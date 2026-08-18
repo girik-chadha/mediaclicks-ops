@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
 import { LogoMark } from '@/components/shell/logo'
+import { ForgotForm } from './forgot-form'
 
 export const metadata: Metadata = { title: 'Forgot password · MediaClicks' }
 
 /**
- * There is no self-service reset yet, and inventing one would mean building
- * token issuance, expiry and email delivery — none of which exists.
+ * Self-service reset, and how everyone gets their first password.
  *
- * §8: say what happened and what to do. A page that explains the real path is
- * worth more than a form that emails nothing.
+ * Accounts are created without one. Each person comes here, receives a link,
+ * and chooses their own — so no temporary password is ever typed by an
+ * administrator, read off a screen, or left sitting in a chat thread.
  */
 export default function ForgotPasswordPage() {
   return (
@@ -18,16 +19,11 @@ export default function ForgotPasswordPage() {
       <p className="mt-2 text-micro uppercase text-slate">Operations</p>
 
       <p className="mt-6 text-body leading-[1.5] text-slate">
-        There is no self-service reset yet. Ask an owner to set you a new one — it takes
-        them a few seconds — then sign in and change it.
+        Enter your work email and we will send you a link to set a new one. Setting up for
+        the first time? Same thing — this is how you choose your first password.
       </p>
 
-      <a
-        href="/login"
-        className="mt-6 inline-flex h-11 items-center rounded-sm border border-rule bg-surface px-4 text-body font-medium transition-colors duration-[80ms] hover:border-signal"
-      >
-        Back to sign in
-      </a>
+      <ForgotForm />
     </div>
   )
 }

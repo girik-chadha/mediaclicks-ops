@@ -1,5 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
+import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import type { Actor, PermissionKey } from '@/lib/permissions'
 import { db } from '../db'
@@ -125,4 +126,22 @@ export class UnauthenticatedError extends Error {
   constructor() {
     super('Sign in to continue')
   }
+}
+
+/**
+ * Where a page goes when `getActor()` returns null.
+ *
+ * Deliberately not `/login`. Getting here means middleware already accepted
+ * the cookie — it is authentic — but the user it names is not in this
+ * database, so sending them to /login just makes middleware bounce them back
+ * with the same valid cookie. See src/app/api/stale-session/route.ts for the
+ * full loop and why only the Node side can detect it.
+ *
+ * The cast exists because `typedRoutes` builds its union from pages, and this
+ * is a route handler. That is also exactly why it works: route handlers live
+ * under /api, which the middleware matcher skips, and a route whose job is to
+ * escape a redirect loop must not be inside one.
+ */
+export function redirectStaleSession(): never {
+  redirect('/api/stale-session' as Parameters<typeof redirect>[0])
 }

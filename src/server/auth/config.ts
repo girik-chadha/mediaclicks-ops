@@ -33,6 +33,14 @@ export const authConfig = {
       const signedIn = Boolean(auth?.user)
       const path = request.nextUrl.pathname
       const onLogin = path.startsWith('/login') || path.startsWith('/forgot')
+      // Reached from an emailed link by someone who is, by definition, not
+      // signed in — and who may be setting a first password on an account
+      // that has never had one. Kept out of the redirect-when-signed-in
+      // branch above as well: an admin already signed in on the same browser
+      // must still be able to open a link they were sent.
+      const onReset = path.startsWith('/reset/')
+
+      if (onReset) return true
 
       if (onLogin) {
         if (signedIn) return Response.redirect(new URL('/today', request.nextUrl))
