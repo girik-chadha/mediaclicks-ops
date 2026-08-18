@@ -413,15 +413,26 @@ describe('the same question, asked differently', () => {
 })
 
 describe('answering a question the assistant asked', () => {
+  /**
+   * `durationMinutes` is null on every one of these: they name a start and
+   * say nothing about how long. Null rather than 30 so the planner keeps
+   * whatever was carried — see tests/assistant/duration.test.ts.
+   */
   it('reads a bare time', () => {
-    expect(answerTime('3pm')).toEqual({ day: null, time: { hour: 15, minute: 0 } })
+    expect(answerTime('3pm')).toEqual({
+      day: null,
+      time: { hour: 15, minute: 0 },
+      durationMinutes: null,
+    })
     expect(answerTime('tomorrow at 10am')).toEqual({
       day: { kind: 'tomorrow' },
       time: { hour: 10, minute: 0 },
+      durationMinutes: null,
     })
     expect(answerTime('friday morning')).toEqual({
       day: { kind: 'weekday', weekday: 5, next: false },
       time: { hour: 10, minute: 0 },
+      durationMinutes: null,
     })
     expect(answerTime('whenever')).toBeNull()
   })

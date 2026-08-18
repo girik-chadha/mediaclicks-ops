@@ -29,6 +29,7 @@ import {
   type MeetingRow,
 } from '../meetings/queries'
 import { approverFor, approverName, mayDoItThemselves } from './approvals'
+import { modelAvailable, planFromPromptWithModel } from './llm-planner'
 import { runTool } from './tools'
 
 /**
@@ -96,6 +97,10 @@ export async function planFromAnswer(
         dayIso: when.day ? resolveDay(when.day, now, actor.timezone).toISOString() : pending.dayIso,
         hour: when.time.hour,
         minute: when.time.minute,
+        // "6pm to 7pm" answers how long as well as when. Keeping what was
+        // carried when they only named a start is what stops an answer to a
+        // later question from resetting a length given earlier.
+        durationMinutes: when.durationMinutes ?? pending.durationMinutes,
       }
       break
     }
@@ -150,7 +155,14 @@ export async function planFromPrompt(
   prompt: string,
 ): Promise<AssistantReply> {
   const parsed = parse(prompt)
-  if (!parsed.ok) return { answer: withExamples(parsed.reason), actions: [] }
+  if (!parsed.ok) {
+    // The grammar is still the whole answer for anything it recognises —
+    // free, instant, exhaustively tested. This only widens what counts as
+    // recognised; see llm-planner.ts for why it cannot widen what the
+    // assistant is allowed to do.
+    if (modelAvailable()) return await planFromPromptWithModel(actor, prompt)
+    return { answer: withExamples(parsed.reason), actions: [] }
+  }
 
   const now = new Date()
 

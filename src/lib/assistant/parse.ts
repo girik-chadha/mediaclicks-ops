@@ -1,9 +1,11 @@
 import {
+  DURATION_PHRASE,
   parseDuration,
   parseRange,
   parseRanges,
   takeDay,
   takeTimeOfDay,
+  takeTimeRange,
   type RangeSpec,
   type TimeExpr,
 } from './when'
@@ -364,18 +366,29 @@ const schedule: Matcher = (text) => {
     rest = rest.slice(0, about.index).trim()
   }
 
-  // 5. Duration, before the time — "30 minutes" must not become 00:30.
-  const durationMinutes = parseDuration(rest) ?? 30
-  const dur = /\b(?:for\s+)?(?:half\s+an?\s+hour|an?\s+hour|\d{1,3}\s*(?:h|hr|hrs|hour|hours|m|min|mins|minute|minutes))\b/.exec(
-    rest,
-  )
+  // 5. A named length, before the time — "30 minutes" must not become 00:30.
+  //    Stripped with the same expression that read it, so the two cannot
+  //    drift apart and leave "and a half" behind in somebody's name.
+  const statedDuration = parseDuration(rest)
+  const dur = DURATION_PHRASE.exec(rest)
   if (dur) rest = strip(rest, dur)
 
-  // 6. When.
+  // 6. When. A span — "6pm to 7pm" — is tried before a single time, because
+  //    takeTimeOfDay would happily match the "6pm" half and leave the "7pm"
+  //    behind, which is how a request for an hour became a thirty-minute
+  //    meeting with a card that looked correct.
   const day = takeDay(rest)
   if (day) rest = day.rest
-  const time = takeTimeOfDay(rest)
+
+  const span = takeTimeRange(rest)
+  if (span) rest = span.rest
+
+  const time = span ? null : takeTimeOfDay(rest)
   if (time) rest = time.rest
+
+  // A span names both ends, so it settles the length on its own. A stated
+  // length only wins when nothing was said about when it finishes.
+  const durationMinutes = span?.range.durationMinutes ?? statedDuration ?? 30
 
   // A missing time is no longer a refusal. "Schedule a gmeet with Priya"
   // is a perfectly clear request with a gap in it, and the planner asks
@@ -394,7 +407,7 @@ const schedule: Matcher = (text) => {
   return ok({
     kind: 'schedule',
     withNames,
-    when: { day: day?.day ?? null, time: time?.time ?? null },
+    when: { day: day?.day ?? null, time: span?.range.start ?? time?.time ?? null },
     durationMinutes,
     provider,
     title,
@@ -408,13 +421,41 @@ const schedule: Matcher = (text) => {
    parsed against the expected slot rather than through the matchers above.
    That is also what stops "zoom" being read as a request to schedule one. */
 
-export function answerTime(text: string): TimeExpr | null {
+/**
+ * A reply to "What time?", which may carry a length as well as a start.
+ *
+ * "tomorrow 6pm to 7pm" is a complete answer to that question and people
+ * give it constantly. Reading only the start and keeping the default length
+ * booked an hour-long meeting for thirty minutes — so the span is read here
+ * for the same reason it is read in the schedule matcher, and the planner
+ * carries the duration it yields.
+ */
+export interface AnswerTime extends TimeExpr {
+  /** Null when they named a start and nothing about how long. */
+  readonly durationMinutes: number | null
+}
+
+export function answerTime(text: string): AnswerTime | null {
   const cleaned = normalise(text)
   const day = takeDay(cleaned)
-  const rest = day ? day.rest : cleaned
-  const time = takeTimeOfDay(rest, true)
-  if (!day && !time) return null
-  return { day: day?.day ?? null, time: time?.time ?? null }
+  let rest = day ? day.rest : cleaned
+
+  const stated = parseDuration(rest)
+
+  const span = takeTimeRange(rest)
+  if (span) rest = span.rest
+
+  // `true` because a bare number answering "what time?" is a clock time —
+  // that is the whole reason this path exists rather than the matchers.
+  const time = span ? null : takeTimeOfDay(rest, true)
+
+  if (!day && !span && !time) return null
+
+  return {
+    day: day?.day ?? null,
+    time: span?.range.start ?? time?.time ?? null,
+    durationMinutes: span?.range.durationMinutes ?? stated,
+  }
 }
 
 export function answerProvider(text: string): ScheduleIntent['provider'] | null {

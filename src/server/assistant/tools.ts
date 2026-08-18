@@ -9,6 +9,7 @@ import { formatRange } from '@/lib/time'
 import type { SessionActor } from '../auth/session'
 import { requirePermission } from '../auth/require'
 import {
+  getMeeting,
   listClients,
   listMeetingsInRange,
   listTeam,
@@ -401,8 +402,7 @@ function staged(action: StagedAction): ToolOutcome {
 
 async function load(actor: SessionActor, id: unknown): Promise<MeetingRow | null> {
   if (typeof id !== 'string' || !UUID.test(id)) return null
-  const rows = await listMeetingsInRange(actor, new Date(0), new Date(8.64e15))
-  const found = rows.find((m) => m.id === id)
+  const found = await getMeeting(actor, id)
   // Filtered by can() before the caller sees it, so a meeting the actor may
   // not view is indistinguishable from one that does not exist.
   return found && visible(actor)(found) ? found : null

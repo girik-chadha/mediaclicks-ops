@@ -144,20 +144,228 @@ export function takeTimeOfDay(
   return null
 }
 
-/** "an hour", "30 minutes", "half an hour", "90 mins", "2h". */
-export function parseDuration(text: string): number | null {
-  if (/\bhalf\s+an?\s+hour\b/.test(text)) return 30
-  if (/\ban?\s+hour\b/.test(text)) return 60
+/** The server refuses anything longer (see meetingInput), so the grammar
+ *  refuses it here too rather than staging a card that cannot be confirmed. */
+export const MAX_DURATION_MINUTES = 12 * 60
 
-  const explicit = /\b(\d{1,3})\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/.exec(text)
-  if (explicit) {
-    const n = Number(explicit[1])
-    const unit = explicit[2]!
-    const minutes = unit.startsWith('h') ? n * 60 : n
-    return minutes > 0 && minutes <= 12 * 60 ? minutes : null
+const WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+}
+
+const WORD_ALT = Object.keys(WORDS).join('|')
+
+const UNIT = 'h|hr|hrs|hours?|m|min|mins|minutes?'
+
+/**
+ * A count and its unit.
+ *
+ * Digits may be glued to the unit — "2h", "30m" — but a spelled-out number
+ * must be separated from it. Without that rule "a" + "min" matches inside
+ * the name Amin, and a meeting with him becomes a one-minute meeting with
+ * nobody.
+ */
+const COUNTED = `(?:\\d{1,3}\\s*|(?:an?|${WORD_ALT})\\s+)`
+
+/**
+ * Every phrase parseDuration understands, as one expression.
+ *
+ * Exported because the schedule matcher has to *remove* the length it just
+ * read, and a second regex written to match this one is a second regex that
+ * can drift from it. When that happened the leftover words rode along into
+ * whoever the meeting was with.
+ */
+export const DURATION_PHRASE = new RegExp(
+  '\\b(?:for\\s+)?(?:' +
+    // "1h30", "2h15m" — first, or the hour half matches alone and the
+    // minutes are silently dropped.
+    `\\d{1,2}\\s*(?:h|hr|hrs|hours?)\\s*\\d{1,2}\\s*(?:m|min|mins|minutes?)?` +
+    // "half an hour" — the half leads, and divides rather than adds.
+    `|half\\s+an?\\s+hour` +
+    // "1.5 hours"
+    `|\\d{1,2}[.,]\\d{1,2}\\s*(?:h|hr|hrs|hours?)` +
+    // "two and a half hours", "an hour and a half" — English puts the half
+    // on either side of the unit and neither order is the rare one.
+    `|${COUNTED}(?:and\\s+a\\s+half\\s+)?(?:${UNIT})(?:\\s+and\\s+a\\s+half)?` +
+    ')\\b',
+  'i',
+)
+
+/**
+ * "an hour", "30 minutes", "half an hour", "90 mins", "2h", "1.5 hours",
+ * "an hour and a half", "two and a half hours", "1h30".
+ */
+export function parseDuration(text: string): number | null {
+  const combined = /\b(\d{1,2})\s*(?:h|hr|hrs|hours?)\s*(\d{1,2})\s*(?:m|min|mins|minutes?)?\b/i.exec(
+    text,
+  )
+  if (combined) return capped(Number(combined[1]) * 60 + Number(combined[2]))
+
+  if (/\bhalf\s+an?\s+hour\b/i.test(text)) return 30
+
+  // Decimal minutes are not a thing anybody says, so the fraction is only
+  // honoured on hours.
+  const fractional = /\b(\d{1,2})[.,](\d{1,2})\s*(?:h|hr|hrs|hours?)\b/i.exec(text)
+  if (fractional) {
+    return capped(Math.round((Number(fractional[1]) + Number(`0.${fractional[2]}`)) * 60))
   }
 
-  return null
+  const m = new RegExp(
+    `\\b(?:(\\d{1,3})\\s*|(an?|${WORD_ALT})\\s+)(and\\s+a\\s+half\\s+)?(${UNIT})\\b(\\s+and\\s+a\\s+half)?`,
+    'i',
+  ).exec(text)
+  if (!m) return null
+
+  const n = countOf(m[1] ?? m[2])
+  if (n === null) return null
+
+  const isHours = m[4]!.toLowerCase().startsWith('h')
+  const half = m[3] || m[5] ? (isHours ? 30 : 0) : 0
+  return capped((isHours ? n * 60 : n) + half)
+}
+
+function countOf(token: string | undefined): number | null {
+  if (!token) return null
+  const key = token.toLowerCase()
+  if (/^an?$/.test(key)) return 1
+  if (WORDS[key] !== undefined) return WORDS[key]!
+  const n = Number(key)
+  return Number.isFinite(n) ? n : null
+}
+
+const capped = (minutes: number): number | null =>
+  minutes > 0 && minutes <= MAX_DURATION_MINUTES ? minutes : null
+
+export interface TimeRange {
+  readonly start: TimeOfDay
+  readonly end: TimeOfDay
+  readonly durationMinutes: number
+}
+
+/**
+ * Pulls a *span* out of the text: "6pm to 7pm", "3-4:30", "from 9 until 11",
+ * "between 2 and 3pm", "18:00-19:00".
+ *
+ * This is the half of "when" the grammar was missing. Naming both ends is
+ * the most natural way to book something that is not the default length —
+ * "tomorrow 6pm to 7pm" — and without it every such request was heard as a
+ * start time with the duration silently falling back to thirty minutes. A
+ * meeting an hour shorter than the one you asked for is exactly the kind of
+ * confident wrongness ADR 0007 warns about: the card looks right.
+ */
+export function takeTimeRange(text: string): { range: TimeRange; rest: string } | null {
+  // "and" is only a separator after "between", because "with priya and
+  // arjun" is not a time range and requiring digits on both sides is not
+  // enough on its own to make that safe.
+  const dashed =
+    /\b(?:from\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to|till|til|until|through)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\b/i.exec(
+      text,
+    )
+  const between =
+    /\bbetween\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s+and\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\b/i.exec(
+      text,
+    )
+
+  const m = between ?? dashed
+  if (!m) return null
+
+  const startRaw = Number(m[1])
+  const startMin = Number(m[2] ?? 0)
+  const startMer = m[3]?.toLowerCase()
+  const endRaw = Number(m[4])
+  const endMin = Number(m[5] ?? 0)
+  const endMer = m[6]?.toLowerCase()
+
+  if (!plausible(startRaw, startMin) || !plausible(endRaw, endMin)) return null
+
+  const picked = pickRange(
+    { raw: startRaw, minute: startMin, meridiem: startMer },
+    { raw: endRaw, minute: endMin, meridiem: endMer },
+  )
+  if (!picked) return null
+
+  return { range: picked, rest: cut(text, m) }
+}
+
+const plausible = (hour: number, minute: number) =>
+  hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+
+interface Spoken {
+  readonly raw: number
+  readonly minute: number
+  readonly meridiem: string | undefined
+}
+
+/**
+ * Every 24-hour reading a spoken hour could have.
+ *
+ * "7pm" has one. A bare "7" has two, and which one is meant depends on the
+ * *other* end of the range — "7 to 8" is the evening, "11 to 1" straddles
+ * noon — so the choice cannot be made one end at a time.
+ */
+function candidates(s: Spoken): number[] {
+  const at = (hour: number) => hour * 60 + s.minute
+
+  if (s.meridiem === 'pm') return [at(s.raw < 12 ? s.raw + 12 : s.raw)]
+  if (s.meridiem === 'am') return [at(s.raw === 12 ? 0 : s.raw)]
+  if (s.raw > 12) return [at(s.raw)]
+  if (s.raw === 12) return [at(12), at(0)]
+  return [at(s.raw), at(s.raw + 12)]
+}
+
+/** 06:00–22:00. Outside it, a range is more likely misread than nocturnal. */
+const DAYTIME_FROM = 6 * 60
+const DAYTIME_TO = 22 * 60
+
+/**
+ * Picks the reading of an ambiguous range that a person would have meant.
+ *
+ * Scored rather than rule-chained, because the rules interact: "11 to 1"
+ * only works if the two ends are allowed to take different halves of the
+ * day, and "6 to 7" only lands in the evening if the same bare-hour
+ * convention takeTimeOfDay uses is applied here too.
+ */
+function pickRange(start: Spoken, end: Spoken): TimeRange | null {
+  let best: { range: TimeRange; score: number } | null = null
+
+  for (const s of candidates(start)) {
+    for (const e of candidates(end)) {
+      const duration = e - s
+      if (duration <= 0 || duration > MAX_DURATION_MINUTES) continue
+
+      let score = duration / (24 * 60) // tie-break: the shorter reading wins
+      if (s < DAYTIME_FROM || s > DAYTIME_TO) score += 100
+      if (e < DAYTIME_FROM || e > DAYTIME_TO) score += 100
+      // The same convention takeTimeOfDay applies to a bare hour: 1–7 means
+      // the afternoon, because a working day does not start at three in the
+      // morning. Kept in step deliberately — two different answers to "does
+      // 6 mean 06:00" would be worse than either answer.
+      if (!start.meridiem && start.raw >= 1 && start.raw <= 7 && s < 12 * 60) score += 10
+
+      if (!best || score < best.score) {
+        best = {
+          score,
+          range: {
+            start: { hour: Math.floor(s / 60), minute: s % 60 },
+            end: { hour: Math.floor(e / 60), minute: e % 60 },
+            durationMinutes: duration,
+          },
+        }
+      }
+    }
+  }
+
+  return best?.range ?? null
 }
 
 export function parseRange(text: string): RangeSpec | null {
