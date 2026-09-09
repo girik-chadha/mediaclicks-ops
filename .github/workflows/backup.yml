@@ -109,8 +109,18 @@ jobs:
           fi
 
           # Prove it contains the tables it should, not just bytes.
+          #
+          # Not `grep -q`: it stops reading at the first match, which closes
+          # its end of the pipe while gzip is mid-write. Under `pipefail`
+          # (above) that SIGPIPE is what the pipeline reports, regardless of
+          # grep having found the table it was looking for — a false
+          # failure on a dump that was actually fine, going by "Dump is
+          # missing table users" opposite a literal "Broken pipe" in the
+          # same log. `-c` scans to EOF either way, so gzip always finishes
+          # cleanly and the count reflects the real answer.
           for t in users meetings clients audit_log; do
-            gzip -dc "mediaclicks-${STAMP}.sql.gz" | grep -q "CREATE TABLE public.$t" \
+            count=$(gzip -dc "mediaclicks-${STAMP}.sql.gz" | grep -c "CREATE TABLE public.$t")
+            [ "$count" -gt 0 ] \
               || { echo "Dump is missing table $t" >&2; exit 1; }
           done
           echo "verified: schema for users, meetings, clients, audit_log present"
