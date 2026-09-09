@@ -19,7 +19,11 @@ export const metadata: Metadata = { title: 'Sign in · MediaClicks' }
  */
 export default function LoginPage() {
   return (
-    <div className="flex min-h-0 w-full flex-1">
+    // Pinned light, not theme-following: see the [data-theme='light'] block
+    // in globals.css. Forgot and reset are plain cards using the same
+    // tokens as every signed-in screen and are deliberately left out of
+    // this — they should still follow whatever the visitor's OS prefers.
+    <div data-theme="light" className="flex min-h-0 w-full flex-1">
       <LoginHero />
 
       <div className="flex flex-1 items-center justify-center overflow-y-auto bg-paper p-12">

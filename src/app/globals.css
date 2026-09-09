@@ -38,6 +38,47 @@
   --d-rule: #282c33;
 }
 
+/**
+ * The explicit light override — every token above, mirroring the values a
+ * plain `:root` already gives, redeclared under a selector that can win
+ * *inside* a `[data-theme='dark']` ancestor.
+ *
+ * Custom properties inherit like any other value: a descendant only escapes
+ * an ancestor's [data-theme='dark'] by being matched by a rule of its own.
+ * Without this block there is no such rule, so nothing anywhere could ever
+ * opt back out of dark once above it in the tree.
+ *
+ * Exists for one page today. Login has no signed-in person yet, so there is
+ * no stored preference to honour — only the design's one hardcoded palette,
+ * which the source file never gave a dark variant. Before this, a visitor
+ * whose OS defaults to dark (most laptops, out of the box) got --paper's
+ * dark value on the form panel, which sits one step off --ink's own dark
+ * hero background — the two-panel split collapsed into a single near-black
+ * mass — and the Sign in button's `bg-ink` inherited --ink's *dark-mode*
+ * value, near-white, which is the exact New-meeting-button bug from earlier
+ * in this project: a component reading a token that flips, for a thing
+ * that was never supposed to.
+ */
+[data-theme='light'] {
+  --ink: #14161a;
+  --slate: #5b6472;
+  --paper: #f7f8fa;
+  --surface: #ffffff;
+  --rule: #e2e5ea;
+  --signal: #0b7b8a;
+  --live: #d6216b;
+
+  --fill-signal: rgb(11 123 138 / 0.12);
+  --fill-signal-hi: rgb(11 123 138 / 0.18);
+  --fill-live: rgb(214 33 107 / 0.12);
+  --hover: rgb(226 229 234 / 0.4);
+
+  --invert: #14161a;
+  --invert-fg: #ffffff;
+  --veil: rgb(20 22 26 / 0.4);
+  --float: 0 8px 24px -8px rgb(20 22 26 / 0.16);
+}
+
 [data-theme='dark'] {
   --ink: #f2f4f7;
   --slate: #8a94a3;
