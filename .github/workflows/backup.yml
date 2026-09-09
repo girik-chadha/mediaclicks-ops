@@ -40,6 +40,8 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          set -o pipefail
+
           if [ -z "$DATABASE_URL" ]; then
             echo "DATABASE_URL secret is not set — nothing to back up." >&2
             exit 1
@@ -52,9 +54,28 @@ jobs:
           # grants are recreated by the migrations, not carried across.
           #
           # Pooled connections cannot hold the consistent snapshot pg_dump
-          # wants, so this asks for the direct endpoint if one is offered;
-          # falls back to whatever the URL is.
+          # wants, so this steps down to whichever pooled mode the provider
+          # actually supports it over — the two transforms below are
+          # independent and safe to chain, each a no-op on a URL the other
+          # one applies to:
+          #
+          #  - Neon names the pooled host with a "-pooler" segment
+          #    (ep-xxx-pooler.region.aws.neon.tech); stripping it gives the
+          #    unpooled endpoint directly.
+          #  - Supabase uses the *same* pooler host for both modes and
+          #    distinguishes by port — 6543 is transaction mode, which
+          #    pg_dump cannot use at all. 5432 on that same host is session
+          #    mode: one backend connection per client, which pg_dump needs,
+          #    and — unlike Supabase's true direct endpoint — reachable over
+          #    IPv4, which is what this runner has. Found the hard way: this
+          #    silently produced a 20-byte empty dump that gzip happily
+          #    compressed, because the "-pooler" strip above doesn't match
+          #    Supabase's dotted hostname (aws-0-<region>.pooler.supabase.com)
+          #    at all, so it fell straight through to transaction mode.
           DIRECT="${DATABASE_URL/-pooler/}"
+          DIRECT="${DIRECT/:6543/:5432}"
+          echo "dumping from: $(echo "$DIRECT" | sed -E 's#//[^@]+@#//[redacted]@#')"
+
           pg_dump "$DIRECT" \
             --no-owner --no-privileges --format=plain \
             2>/tmp/dump.err \
@@ -69,6 +90,9 @@ jobs:
           # a header on it.
           if [ "$SIZE" -lt 1024 ]; then
             echo "Dump is suspiciously small — treating as a failure." >&2
+            echo "--- pg_dump stderr ---" >&2
+            cat /tmp/dump.err >&2
+            echo "--- decompressed content, if any ---" >&2
             gzip -dc "mediaclicks-${STAMP}.sql.gz" | head -40
             exit 1
           fi
