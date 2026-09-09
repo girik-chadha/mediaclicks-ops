@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Forgot password · MediaClicks' }
  */
 export default function ForgotPasswordPage() {
   return (
-    <div className="w-[340px]">
+    <div className="m-auto w-[340px] p-6">
       <LogoMark size={44} className="text-ink" />
       <h1 className="mt-5 font-display text-display-lg">Forgot password</h1>
       <p className="mt-2 text-micro uppercase text-slate">Operations</p>

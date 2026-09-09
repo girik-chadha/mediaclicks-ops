@@ -22,7 +22,7 @@ export default async function ResetPage({
 
   if (!checked.ok) {
     return (
-      <div className="w-[340px]">
+      <div className="m-auto w-[340px] p-6">
         <LogoMark size={44} className="text-ink" />
         <h1 className="mt-5 font-display text-display-lg">Link not usable</h1>
         <p className="mt-6 text-body leading-[1.5] text-slate">{checked.reason}</p>
@@ -40,7 +40,7 @@ export default async function ResetPage({
   }
 
   return (
-    <div className="w-[340px]">
+    <div className="m-auto w-[340px] p-6">
       <LogoMark size={44} className="text-ink" />
       <h1 className="mt-5 font-display text-display-lg">Set a password</h1>
       <p className="mt-2 text-micro uppercase text-slate">Operations</p>
