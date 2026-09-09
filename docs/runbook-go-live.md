@@ -29,16 +29,14 @@ database password) and create a new Groq key at console.groq.com/keys.
 Production gets new values. Development can keep the old ones — they only
 protect demo data.
 
-### 2. Meeting edit and cancel are unverified
+### 2. Meeting edit and cancel — verified 2026-09-09
 
 They were broken for the whole of development by a query asking Postgres for
-every meeting up to the year 275760. The fix is in and typechecks, but has
-never been confirmed against a live database.
-
-**Verify before the team depends on it.** In development: open a meeting,
-rename it, save, hard-refresh, confirm the new name survived. Then cancel one
-and confirm it shows as cancelled. If either fails, the terminal now names
-the cause.
+every meeting up to the year 275760 (`src/server/meetings/queries.ts`). The
+fix shipped typechecked and tested but unconfirmed against a live database —
+now confirmed: create, edit, and cancel all checked against the restored
+production database on Vercel, not just development. If this ever regresses,
+the terminal names the cause rather than failing silently.
 
 ### 3. Disable the Supabase Data API
 
@@ -105,6 +103,20 @@ Settings → Environment Variables, for Production:
 `localhost:3000`.
 
 The `SEED_*` values are read only by `npm run db:seed`, never at runtime.
+
+**Vercel's copy of every one of these is independent of everything else** —
+your machine, Supabase, GitHub Actions. Rotating the database password, or
+even the whole database going through a pause-and-restore, changes nothing
+here until someone edits it in this exact screen and redeploys. Missed once
+during this project's own go-live: `DATABASE_URL` sat on the connection
+string from the original import for over a month while the database was
+rotated and restored underneath it. The symptom was not a connection error —
+Auth.js caught the failed query inside `authorize()` and folded it into the
+same generic "that email and password don't match" message a real wrong
+password produces (`src/app/(auth)/login/actions.ts`), which reads exactly
+like the credentials are wrong when they never were. If sign-in ever fails
+mysteriously again after any secret rotation, check this page before
+doubting the password.
 
 ### 7. Deploy, and check it boots
 
