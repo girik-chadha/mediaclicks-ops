@@ -169,3 +169,74 @@ are genuinely live in the viewer's own zone.
   once per sign-in. Wanted eventually; it needs a device identifier that is
   not a fingerprint, and it should not be invented in the same change that
   introduces the factor itself.
+
+---
+
+## Amendment, 2026-09-09 — the second factor is per person, not per install
+
+**Status:** accepted, supersedes the env-only switch above.
+
+### What changed
+
+`AUTH_2FA=required` was the only way to turn a second factor on, which made
+it all-or-nothing for the whole agency. It is now a per-account setting,
+off by default, with `AUTH_2FA=required` demoted to an override that mandates
+it for everyone regardless of what they chose.
+
+### Why
+
+An agency of five to twenty-five people has no device policy and no help
+desk. Switching a second factor on for everyone at once means the first
+person who cannot reach their inbox has nobody to call — and the failure is
+total, because signing in is exactly the thing they need to do to change the
+setting back.
+
+Opting in individually makes the blast radius of that one account, and the
+people who turn it on are the ones who understood what they were turning on.
+The mandate stays available for when the agency decides to stop leaving it
+optional, which is a decision an owner should be able to make without a code
+change.
+
+### The offer, and the X
+
+Somebody who never visits Profile would never discover the setting, so Home
+offers it once. It is deliberately **not** in "Needs you": that section is
+real operational work derived from real rows, and a suggestion sitting among
+items that each mean somebody is blocked would devalue the ones that do.
+
+Dismissing it stores a timestamp and never asks again. The X says "don't show
+this again", so it has to mean that — a nudge that returns anyway is a nag,
+and it teaches people to ignore the region it appears in, which costs more
+than this feature is worth. The timestamp rather than a boolean leaves "ask
+again after six months" available later without a migration; nothing reads it
+that way today.
+
+### Where the enforcement moved
+
+`authorize()` still refuses the single-step door for anyone who uses a second
+factor, but now checks the person's own setting rather than an environment
+variable — and checks it **after** the password rather than before.
+
+Before, refusing early was correct: the answer was the same for everybody, so
+it leaked nothing. Now the answer is a fact about one account, and refusing
+before the password check would answer "does this address use two-factor" for
+any address, to anyone, without a password. Checking after makes that refusal
+indistinguishable from a wrong password, at the same argon2 cost.
+
+The same reasoning moved the decision inside `startLoginChallenge`: the login
+form cannot ask "should I show the code step" before submitting, because that
+question is the oracle. It submits, and the server decides.
+
+### Consequences
+
+- One more state to hold: "switched on, but email is down". Profile
+  distinguishes it from plain "on", because a toggle that renders them
+  identically is lying about the one that matters.
+- Turning it *off* is deliberately not gated on mail being configured.
+  Somebody whose mailer has broken is exactly who needs that button.
+- An individual who loses access to their inbox still needs somebody else to
+  turn it off for them. There is no self-service recovery, and there should
+  not be — one that worked without the mailbox would defeat the factor.
+  **Not yet built: an owner-facing control to do that from the Team screen.**
+  Until it exists the recovery is `npm run db:set-password`-shaped, i.e. a
+  developer. That is the known sharp edge of this change.

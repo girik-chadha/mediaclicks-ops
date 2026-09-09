@@ -57,6 +57,13 @@
       "when": 1788962279161,
       "tag": "0007_abnormal_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788973711398,
+      "tag": "0008_minor_nick_fury",
+      "breakpoints": true
     }
   ]
 }

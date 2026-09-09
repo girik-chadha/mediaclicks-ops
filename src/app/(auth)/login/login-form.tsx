@@ -50,13 +50,7 @@ function GoogleMark() {
   )
 }
 
-export function LoginForm({
-  googleEnabled,
-  twoFactor,
-}: {
-  googleEnabled: boolean
-  twoFactor: boolean
-}) {
+export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const [state, formAction] = useActionState<LoginState, FormData>(login, {})
   const [codeState, codeAction] = useActionState<LoginState, FormData>(verifyCode, {})
   const [remember, setRemember] = useState(false)
@@ -206,12 +200,6 @@ export function LoginForm({
       {googleNote && (
         <p role="status" className="text-label text-slate">
           Google sign-in isn&rsquo;t set up yet. Use your email and password.
-        </p>
-      )}
-
-      {twoFactor && (
-        <p className="text-label text-slate">
-          We&rsquo;ll email you a code to finish signing in.
         </p>
       )}
 

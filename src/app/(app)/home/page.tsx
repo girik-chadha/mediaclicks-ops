@@ -8,6 +8,8 @@ import { listMeetingsInRange } from '@/server/meetings/queries'
 import { listPendingFor } from '@/server/assistant/approvals'
 import { describeDelay } from '@/lib/notifications/describe'
 import { reminderHealth } from '@/server/notifications/health'
+import { shouldOfferTwoFactor } from '@/lib/auth/two-factor'
+import { mailIsConfigured } from '@/server/mail'
 
 export default async function HomePage({
   searchParams,
@@ -52,6 +54,11 @@ export default async function HomePage({
           zone={zone}
           firstName={actor.fullName.split(' ')[0] ?? actor.fullName}
           greet={greet}
+          offerTwoFactor={shouldOfferTwoFactor({
+            userEnabled: actor.twoFactorEnabled,
+            dismissedAt: actor.twoFactorPromptDismissedAt,
+            mailConfigured: mailIsConfigured(),
+          })}
           meId={actor.id}
           remindersStuck={
             reminders

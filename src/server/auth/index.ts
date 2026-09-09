@@ -7,7 +7,7 @@ import Google from 'next-auth/providers/google'
 import { z } from 'zod'
 import { db } from '../db'
 import { users } from '../db/schema'
-import { twoFactorRequired } from './challenge'
+import { twoFactorRequiredFor } from './challenge'
 import { authConfig } from './config'
 import { openGrant } from './grant'
 import { hashPassword, verifyPassword } from './password'
@@ -52,6 +52,7 @@ const accountColumns = {
   fullName: users.fullName,
   passwordHash: users.passwordHash,
   deactivatedAt: users.deactivatedAt,
+  twoFactorEnabled: users.twoFactorEnabled,
 }
 
 async function accountByEmail(email: string) {
@@ -114,10 +115,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         /**
          * Path two: email and password, in one step.
          *
-         * Refused outright when a second factor is required — and refused
-         * *before* the password is even looked at, so this cannot be used as
-         * an oracle for whether a password is right.
-         *
          * This branch is the reason the check belongs here rather than in
          * the login form. `/api/auth/callback/credentials` is a public
          * endpoint: anyone can POST an email and password straight to it. If
@@ -125,8 +122,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
          * suggestion and the whole feature would be bypassable by anyone who
          * read the network tab once.
          */
-        if (twoFactorRequired()) return null
-
         const parsed = passwordCredentials.safeParse(raw)
         if (!parsed.success) return null
 
@@ -144,6 +139,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // are referenced by (ADR 0004). Checked after the password so a
         // deactivated account is indistinguishable from a wrong password.
         if (user.deactivatedAt) return null
+
+        /**
+         * This account uses a second factor, so the single-step door is shut
+         * for it — even with the right password, which is the whole point.
+         *
+         * Checked *after* the password rather than before, now that it is a
+         * per-person setting. Refusing early would answer "does this address
+         * use 2FA" for any address, without a password, to anyone who asked;
+         * refusing here is indistinguishable from a wrong password and costs
+         * the same argon2 work. The person's real route is
+         * `startLoginChallenge`, which the login form takes.
+         */
+        if (twoFactorRequiredFor(user.twoFactorEnabled)) return null
 
         await markSignedIn(user.id)
 

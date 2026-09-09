@@ -28,6 +28,10 @@ export interface SessionActor extends Actor {
   readonly dailyDigest: boolean
   readonly digestTime: string
   readonly reminderLeadMinutes: number
+  /** Whether this person is asked for an emailed code at sign-in. */
+  readonly twoFactorEnabled: boolean
+  /** Set once they have said "not now" to the offer on Home. */
+  readonly twoFactorPromptDismissedAt: Date | null
   /**
    * Display only — for the avatar menu and the team screen.
    *
@@ -77,6 +81,8 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
       dailyDigest: users.dailyDigest,
       digestTime: users.digestTime,
       reminderLeadMinutes: users.reminderLeadMinutes,
+      twoFactorEnabled: users.twoFactorEnabled,
+      twoFactorPromptDismissedAt: users.twoFactorPromptDismissedAt,
       deactivatedAt: users.deactivatedAt,
     })
     .from(users)
@@ -121,6 +127,8 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
     dailyDigest: user.dailyDigest,
     digestTime: user.digestTime,
     reminderLeadMinutes: user.reminderLeadMinutes,
+    twoFactorEnabled: user.twoFactorEnabled,
+    twoFactorPromptDismissedAt: user.twoFactorPromptDismissedAt,
     roleNames,
     permissions: permissionKeys,
   }

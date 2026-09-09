@@ -23,8 +23,10 @@ import { hashPassword, verifyPassword } from './password'
  * gets you a challenge row and an email to somebody else's inbox, and
  * nothing else.
  *
- * Enabled by `AUTH_2FA=required`. Off by default, and deliberately so — see
- * `twoFactorRequired()`.
+ * Per person, off by default: each account opts in from Profile, or is
+ * offered it once on Home. `AUTH_2FA=required` still overrides that for
+ * everyone. Either way a working mailer is the precondition — see
+ * src/lib/auth/two-factor.ts for why that veto is not a convenience.
  */
 
 const CODE_TTL_MINUTES = 10
@@ -41,8 +43,23 @@ const hashCode = (challengeId: string, code: string): string =>
   sha256(`${challengeId}:${code}`)
 
 /** The decision lives in lib and is tested there; this is only the wiring. */
-export function twoFactorRequired(): boolean {
-  return twoFactorDecision(process.env.AUTH_2FA, mailIsConfigured())
+export function twoFactorRequiredFor(userEnabled: boolean): boolean {
+  return twoFactorDecision({
+    userEnabled,
+    orgSetting: process.env.AUTH_2FA,
+    mailConfigured: mailIsConfigured(),
+  })
+}
+
+/**
+ * Whether *anyone at all* could be asked for a code right now.
+ *
+ * Only for copy on the login screen, which has no idea yet who is typing —
+ * it cannot say "we'll email you a code" for a person whose account may not
+ * use one. Never used to decide anything.
+ */
+export function twoFactorPossible(): boolean {
+  return mailIsConfigured()
 }
 
 /**
@@ -63,6 +80,14 @@ export type ChallengeStart =
   | { readonly status: 'rejected' }
   /** Password was right, but the code could not be delivered. */
   | { readonly status: 'undeliverable' }
+  /**
+   * Password was right and this account does not use a second factor.
+   *
+   * Reported rather than signed in here, because minting the session is
+   * `authorize()`'s job and this module deliberately has no way to create
+   * one. The caller does the ordinary single-step sign-in.
+   */
+  | { readonly status: 'not-required' }
 
 /**
  * Checks a password and, if it is right, issues and sends a code.
@@ -87,6 +112,7 @@ export async function startLoginChallenge(
       fullName: users.fullName,
       passwordHash: users.passwordHash,
       deactivatedAt: users.deactivatedAt,
+      twoFactorEnabled: users.twoFactorEnabled,
     })
     .from(users)
     .where(eq(users.email, email))
@@ -103,6 +129,15 @@ export async function startLoginChallenge(
   // After the password, so a deactivated account is indistinguishable from a
   // wrong one — matching the credentials provider.
   if (user.deactivatedAt) return { status: 'rejected' }
+
+  /**
+   * This account does not use a second factor. Checked here, after the
+   * password, rather than before the lookup — deciding on the setting first
+   * would mean answering "does this address use 2FA" to anyone who asks,
+   * which is a fact about a person that an unauthenticated form should not
+   * be handing out. Nothing is written and nothing is sent.
+   */
+  if (!twoFactorRequiredFor(user.twoFactorEnabled)) return { status: 'not-required' }
 
   const hourAgo = new Date(Date.now() - 60 * 60_000)
   const recent = await db

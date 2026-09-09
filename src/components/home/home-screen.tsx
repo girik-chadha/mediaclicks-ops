@@ -7,6 +7,7 @@ import { isTimeCritical, meetingState } from '@/components/calendar/encoding'
 import type { MeetingDto } from '@/components/calendar/types'
 import { useNow } from '@/components/shell/use-now'
 import { Greeting, useGreetPhase } from './greeting'
+import { TwoFactorOffer } from './two-factor-offer'
 import {
   HOME_FADE_MS,
   RISE_DELAYS_MS,
@@ -62,6 +63,7 @@ export function HomeScreen({
   approvals,
   remindersStuck,
   greet = false,
+  offerTwoFactor = false,
 }: {
   meetings: MeetingDto[]
   activity: ActivityDto[]
@@ -75,6 +77,10 @@ export function HomeScreen({
   remindersStuck: { count: number; waiting: string } | null
   /** True only on the navigation that follows a sign-in. */
   greet?: boolean
+  /** True when this person has not enabled a second factor and has not
+   *  already declined the offer. Decided on the server — see
+   *  src/lib/auth/two-factor.ts. */
+  offerTwoFactor?: boolean
 }) {
   const now = useNow()
   const reference = now ?? new Date()
@@ -208,6 +214,8 @@ export function HomeScreen({
           />
         </div>
       </div>
+
+      {offerTwoFactor && <TwoFactorOffer />}
 
       {/* Up next */}
       {next && (

@@ -3,6 +3,9 @@ import { PERMISSION_KEYS } from '@/lib/permissions'
 import { signOut } from '@/server/auth'
 import { getActor, redirectStaleSession } from '@/server/auth/session'
 import { ProfileForm } from './profile-form'
+import { TwoFactorSection } from './two-factor-section'
+import { twoFactorStatus } from '@/lib/auth/two-factor'
+import { mailIsConfigured } from '@/server/mail'
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -39,6 +42,14 @@ export default async function ProfilePage() {
           />
 
           <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start">
+            <TwoFactorSection
+              status={twoFactorStatus({
+                userEnabled: actor.twoFactorEnabled,
+                mailConfigured: mailIsConfigured(),
+              })}
+              email={actor.email}
+            />
+
             <section className="min-w-0 flex-1 rounded-sm border border-rule bg-surface p-6">
               <div className="text-micro uppercase text-slate">Access</div>
               <p className="mt-2 text-body leading-[1.5] text-slate">

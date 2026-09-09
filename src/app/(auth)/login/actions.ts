@@ -3,11 +3,7 @@
 import { cookies } from 'next/headers'
 import { AuthError } from 'next-auth'
 import { REMEMBER_COOKIE, signIn } from '@/server/auth'
-import {
-  startLoginChallenge,
-  twoFactorRequired,
-  verifyLoginChallenge,
-} from '@/server/auth/challenge'
+import { startLoginChallenge, verifyLoginChallenge } from '@/server/auth/challenge'
 import { sealGrant } from '@/server/auth/grant'
 import { reportUnexpected } from '@/server/report'
 
@@ -82,25 +78,36 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   // and it also survives a person changing their mind and using Google.
   await rememberCookie(remember)
 
-  if (twoFactorRequired()) {
-    let started
-    try {
-      started = await startLoginChallenge(email, password, remember)
-    } catch (error) {
-      reportUnexpected('login challenge', error)
-      return { error: 'Something went wrong signing you in. Try again.' }
-    }
+  /**
+   * Always asked, because whether a code is needed is a fact about the
+   * account and this form does not know yet whose account it is. The screen
+   * cannot branch on it beforehand without asking the server "does this
+   * address use 2FA", which is a question an unauthenticated form must not
+   * be able to ask about somebody else's address.
+   *
+   * `not-required` means the password was right and this account does not
+   * use a second factor — fall through to the ordinary single-step sign-in.
+   */
+  let started
+  try {
+    started = await startLoginChallenge(email, password, remember)
+  } catch (error) {
+    reportUnexpected('login challenge', error)
+    return { error: 'Something went wrong signing you in. Try again.' }
+  }
 
-    if (started.status === 'rejected') return { error: REFUSED }
-    if (started.status === 'undeliverable') {
-      // Deliberately not the same message as a wrong password: this person
-      // got their password right, and sending them to reset a working
-      // password would be a wild goose chase.
-      return {
-        error: 'We could not send your code. Try again shortly, or ask an owner.',
-      }
-    }
+  if (started.status === 'rejected') return { error: REFUSED }
 
+  if (started.status === 'undeliverable') {
+    // Deliberately not the same message as a wrong password: this person
+    // got their password right, and sending them to reset a working
+    // password would be a wild goose chase.
+    return {
+      error: 'We could not send your code. Try again shortly, or ask an owner.',
+    }
+  }
+
+  if (started.status === 'sent') {
     return { challengeId: started.challengeId, sentTo: started.email }
   }
 

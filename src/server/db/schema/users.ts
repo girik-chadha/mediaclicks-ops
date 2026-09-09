@@ -73,6 +73,36 @@ export const users = pgTable(
     /** Local wall-clock time, interpreted in the user's own timezone. */
     digestTime: text('digest_time').notNull().default('08:00'),
     reminderLeadMinutes: integer('reminder_lead_minutes').notNull().default(30),
+
+    /**
+     * Whether this person is asked for an emailed code at sign-in.
+     *
+     * Per person, not per organisation, and off by default. An agency of
+     * five to twenty-five has no device policy and no help desk; forcing a
+     * second step on everyone at once means the first person who cannot
+     * reach their inbox has nobody to call. Opting in individually means the
+     * blast radius of that is one account, and the people who turn it on are
+     * the ones who understood what they were turning on.
+     *
+     * `AUTH_2FA=required` still exists and still overrides this for
+     * everybody — see src/lib/auth/two-factor.ts. This is the default, not
+     * the ceiling.
+     */
+    twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+
+    /**
+     * When they last said "not now" to the offer on Home.
+     *
+     * A timestamp rather than a boolean because "dismissed" and "dismissed
+     * in March" are different facts, and only one of them can be turned into
+     * "ask again after a while" without a migration. Today any value at all
+     * means never ask again — the X on that card says "not see it", and a
+     * nudge that returns anyway is a nag that teaches people to ignore the
+     * spot it appears in.
+     */
+    twoFactorPromptDismissedAt: timestamp('two_factor_prompt_dismissed_at', {
+      withTimezone: true,
+    }),
   },
   (t) => [
     /**

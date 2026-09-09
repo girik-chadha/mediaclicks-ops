@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { twoFactorRequired } from '@/server/auth/challenge'
 import { LoginForm } from './login-form'
 import { LoginHero } from './login-hero'
 
@@ -37,7 +36,6 @@ export default function LoginPage() {
             googleEnabled={Boolean(
               process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
             )}
-            twoFactor={twoFactorRequired()}
           />
 
           <p className="mt-8 text-label font-normal leading-[1.5] text-slate">
