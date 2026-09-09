@@ -9,7 +9,16 @@ import { listPendingFor } from '@/server/assistant/approvals'
 import { describeDelay } from '@/lib/notifications/describe'
 import { reminderHealth } from '@/server/notifications/health'
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>
+}) {
+  // Set only by the redirect that follows a sign-in, and stripped from
+  // the address bar by the overlay the moment it plays — see
+  // src/components/home/greeting.tsx.
+  const greet = (await searchParams).welcome === '1'
+
   const actor = await getActor()
   if (!actor) redirectStaleSession()
 
@@ -42,6 +51,7 @@ export default async function HomePage() {
           clientsWeek={clientsWeek}
           zone={zone}
           firstName={actor.fullName.split(' ')[0] ?? actor.fullName}
+          greet={greet}
           meId={actor.id}
           remindersStuck={
             reminders

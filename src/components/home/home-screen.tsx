@@ -6,6 +6,13 @@ import { formatRange, formatTime, relativeToNow } from '@/lib/time'
 import { isTimeCritical, meetingState } from '@/components/calendar/encoding'
 import type { MeetingDto } from '@/components/calendar/types'
 import { useNow } from '@/components/shell/use-now'
+import { Greeting, useGreetPhase } from './greeting'
+import {
+  HOME_FADE_MS,
+  RISE_DELAYS_MS,
+  RISE_MS,
+  greetingSubline,
+} from '@/lib/home/greeting'
 
 export interface ActivityDto {
   id: string
@@ -54,6 +61,7 @@ export function HomeScreen({
   meId,
   approvals,
   remindersStuck,
+  greet = false,
 }: {
   meetings: MeetingDto[]
   activity: ActivityDto[]
@@ -65,6 +73,8 @@ export function HomeScreen({
   /** Set when reminders are queued but not going out — see
    *  src/server/notifications/health.ts. */
   remindersStuck: { count: number; waiting: string } | null
+  /** True only on the navigation that follows a sign-in. */
+  greet?: boolean
 }) {
   const now = useNow()
   const reference = now ?? new Date()
@@ -140,10 +150,40 @@ export function HomeScreen({
     ? `${new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short', timeZone: zone }).format(now)} · ${formatTime(now, zone)}`
     : ''
 
+  /**
+   * The sign-in sequence.
+   *
+   * Fed from `remaining` and `reference` — the same array and the same
+   * instant the header above counts from — so the greeting cannot claim two
+   * meetings are left while the stat beside it says three.
+   */
+  const phase = useGreetPhase(greet)
+  const subline = greetingSubline(remaining, reference, (d) => formatTime(d, zone))
+
+  /** The four staggered blocks. `both` so each holds its start state until
+   *  its delay elapses, and its end state after — without it they flash in
+   *  at full opacity and then animate. Cleared at `idle` so a resize or a
+   *  re-render cannot replay the entrance. */
+  const rise = (index: number): React.CSSProperties | undefined =>
+    phase === 'in'
+      ? { animation: `riseIn ${RISE_MS}ms ease-out ${RISE_DELAYS_MS[index]}ms both` }
+      : undefined
+
   return (
-    <div className="min-w-[660px] max-w-[1280px] px-6 pb-12 pt-8">
+    <div
+      className="min-w-[660px] max-w-[1280px] px-6 pb-12 pt-8"
+      style={
+        phase === 'in'
+          ? { animation: `greetFadeIn ${HOME_FADE_MS}ms ease-out both` }
+          : undefined
+      }
+    >
+      <Greeting phase={phase} firstName={firstName} dateline={dateline} subline={subline} />
       {/* Header */}
-      <div className="flex items-end justify-between gap-8 border-b border-rule pb-6">
+      <div
+        className="flex items-end justify-between gap-8 border-b border-rule pb-6"
+        style={rise(0)}
+      >
         <div className="min-w-0">
           <div className={SECTION_TITLE}>{dateline || ' '}</div>
           <h1 className="mt-3 font-display text-display-lg">
@@ -171,7 +211,7 @@ export function HomeScreen({
 
       {/* Up next */}
       {next && (
-        <section className="mt-8">
+        <section className="mt-8" style={rise(1)}>
           <div className={SECTION_HEAD}>
             <h2 className={SECTION_TITLE}>Up next</h2>
             <span className={MONO_META}>{providerCode(next.conferencingProvider)}</span>
@@ -248,7 +288,7 @@ export function HomeScreen({
 
       {/* Needs you */}
       {needs.length > 0 && (
-        <section className="mt-10">
+        <section className="mt-10" style={rise(2)}>
           <div className={SECTION_HEAD}>
             <h2 className={SECTION_TITLE}>Needs you</h2>
             <span className={MONO_META}>
@@ -272,7 +312,7 @@ export function HomeScreen({
       )}
 
       {/* The rest of your day */}
-      <section className="mt-10">
+      <section className="mt-10" style={rise(3)}>
         <div className={SECTION_HEAD}>
           <h2 className={SECTION_TITLE}>The rest of your day</h2>
           <a href="/today" className="text-label font-medium text-signal">

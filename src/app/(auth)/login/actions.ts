@@ -29,6 +29,18 @@ export interface LoginState {
   sentTo?: string
 }
 
+/**
+ * Where signing in lands, and the flag that plays the greeting once.
+ *
+ * Home rather than Today: the greeting sequence is specified over Home's
+ * header and its first three sections, and Home is where the name, the
+ * live meeting and the day's count already are.
+ *
+ * All three ways in share it — password, second factor, and Google — so
+ * nobody arrives by a side door and misses it.
+ */
+const SIGNED_IN = '/home?welcome=1'
+
 /** One message for wrong password, unknown address and deactivated account.
  *  Saying which would turn the form into a membership oracle for whoever is
  *  phishing this agency next — the same rule the reset endpoint follows. */
@@ -97,7 +109,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       email,
       password,
       remember: String(remember),
-      redirectTo: '/today',
+      redirectTo: SIGNED_IN,
     })
     return {}
   } catch (error) {
@@ -142,7 +154,7 @@ export async function verifyCode(
   try {
     await signIn('credentials', {
       grant: sealGrant(result.userId, result.remember),
-      redirectTo: '/today',
+      redirectTo: SIGNED_IN,
     })
     return {}
   } catch (error) {
@@ -156,5 +168,5 @@ export async function verifyCode(
 /** Sets the device cookie, then hands off to Google. */
 export async function googleSignIn(formData: FormData): Promise<void> {
   await rememberCookie(readRemember(formData))
-  await signIn('google', { redirectTo: '/today' })
+  await signIn('google', { redirectTo: SIGNED_IN })
 }

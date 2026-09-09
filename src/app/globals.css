@@ -308,6 +308,83 @@
   }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   The sign-in greeting (design handoff: Sign-in → Greeting → Home).
+
+   Durations and easings are the handoff's, verbatim. `riseIn` above is
+   reused for the four staggered Home blocks rather than redeclared — it is
+   already exactly the handoff's keyframe (opacity 0 + 4px rise), it just
+   runs at a different duration here, which the call site sets.
+
+   The scrim's colour is NOT in these keyframes. It comes from --paper on the
+   element, so it is near-white on the light theme and near-black on the dark
+   one; the keyframes only move opacity and blur, which are the same in both.
+   The handoff could only specify a light literal — it was a prototype with
+   one palette and no theme to follow.
+   ────────────────────────────────────────────────────────────────────────── */
+@keyframes greetVeilIn {
+  from {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+}
+@keyframes greetVeilOut {
+  from {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+  to {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+  }
+}
+@keyframes greetTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Lifts and grows a hair as it goes, so the text reads as moving past the
+   viewer rather than simply switching off. */
+@keyframes greetTextOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(1.03);
+  }
+}
+@keyframes greetRuleIn {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes greetFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @utility animate-rise-in {
   animation: riseIn 120ms ease-out;
 }
