@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from 'next-auth'
+import { REMEMBERED_MS, expiryFor, sessionExpired } from '@/lib/auth/session-window'
 
 /**
  * The Edge-safe half of the Auth.js configuration.
@@ -15,7 +16,14 @@ import type { NextAuthConfig } from 'next-auth'
 export const authConfig = {
   // Credentials sign-in requires JWT sessions; there is no database session
   // to look up.
-  session: { strategy: 'jwt' },
+  //
+  // maxAge is the outer ceiling, not the session length. It matches the
+  // longest window anyone can be granted, so that Auth.js's own expiry never
+  // cuts a remembered device short; the actual deadline is `expiresAt` below,
+  // which is shorter for anyone who did not tick the box. Stated explicitly
+  // rather than inherited — it happens to equal the library default today,
+  // and a silent change to that default should not silently change this.
+  session: { strategy: 'jwt', maxAge: REMEMBERED_MS / 1000 },
 
   pages: {
     signIn: '/login',
@@ -30,7 +38,12 @@ export const authConfig = {
      * on a sign-in form for an active session.
      */
     authorized({ auth, request }) {
-      const signedIn = Boolean(auth?.user)
+      // Past its window counts as signed out here too, so an expired session
+      // is redirected to /login rather than being allowed to render a page
+      // that then finds no actor. Enforcement still happens server-side in
+      // getActor(); this only decides what the person sees.
+      const live = auth?.user && !sessionExpired(auth.expiresAt)
+      const signedIn = Boolean(live)
       const path = request.nextUrl.pathname
       const onLogin = path.startsWith('/login') || path.startsWith('/forgot')
       // Reached from an emailed link by someone who is, by definition, not
@@ -55,6 +68,13 @@ export const authConfig = {
       if (user) {
         token.userId = user.id as string
         token.orgId = user.orgId
+
+        // Stamped once, here, and never recomputed below — which is what
+        // makes the window absolute rather than sliding. Recomputing it on
+        // each pass would mean a session that never ends as long as someone
+        // keeps a tab open, and "12 hours" would quietly become "12 hours
+        // after you stop", which is not what the checkbox says.
+        token.expiresAt = expiryFor(user.remember === true)
       }
       return token
     },
@@ -62,6 +82,7 @@ export const authConfig = {
     session({ session, token }) {
       session.user.id = token.userId
       session.user.orgId = token.orgId
+      session.expiresAt = token.expiresAt
       return session
     },
   },

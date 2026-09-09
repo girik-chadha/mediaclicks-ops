@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
+import { sessionExpired } from '@/lib/auth/session-window'
 import type { Actor, PermissionKey } from '@/lib/permissions'
 import { db } from '../db'
 import { permissions, rolePermissions, roles, userRoles, users } from '../db/schema'
@@ -53,6 +54,17 @@ export const getActor = cache(async (): Promise<SessionActor | null> => {
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) return null
+
+  /**
+   * The "keep me signed in" deadline, enforced.
+   *
+   * This is the check that makes the checkbox real. It is here rather than
+   * in the token because Auth.js overwrites a token's own `exp` on encode
+   * (see src/lib/auth/session-window.ts), and here rather than only in
+   * middleware because middleware decides what renders, not what is allowed —
+   * a server action reaches `requireActor()` without passing the matcher.
+   */
+  if (sessionExpired(session.expiresAt)) return null
 
   const found = await db
     .select({
