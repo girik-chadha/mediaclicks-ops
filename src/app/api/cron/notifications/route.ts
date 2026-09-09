@@ -8,10 +8,15 @@ export const dynamic = 'force-dynamic'
 /**
  * The notification tick.
  *
- * Called on a schedule from outside the app, because Vercel's Hobby plan
- * caps cron at once a day and a thirty-minute reminder needs minutes. A
- * GitHub Actions schedule does the calling — see
- * .github/workflows/notifications.yml.
+ * Called on a schedule from outside the app, five minutes apart: Vercel's
+ * own cron on Pro (see `vercel.json`), which invokes over **GET** — Vercel
+ * gives no way to configure a cron job to call with any other method — plus
+ * an hourly `POST` from `.github/workflows/notifications.yml` as a safety
+ * net on a second provider. Both are kept because Vercel's own docs call
+ * cron delivery "best effort": a silently skipped tick is exactly the
+ * failure a reminder system cannot have. Running twice is harmless — the
+ * unique index on (user_id, type, meeting_id, scheduled_for) makes a
+ * repeated tick insert nothing.
  *
  * Guarded by a shared secret rather than a session: there is no user here.
  * Compared in constant time, because a timing-variable comparison on a
@@ -32,7 +37,7 @@ function authorised(request: Request): boolean {
   return diff === 0
 }
 
-export async function POST(request: Request) {
+async function tick(request: Request): Promise<NextResponse> {
   if (!authorised(request)) {
     // No detail: an unauthenticated caller learns nothing about whether the
     // secret is set, wrong, or the route exists at all.
@@ -48,4 +53,15 @@ export async function POST(request: Request) {
       { status: 500 },
     )
   }
+}
+
+// GET for Vercel's own cron invoker; POST for the GitHub Actions safety net
+// and for triggering a tick by hand. Identical behaviour either way — the
+// method carries no meaning here, it is just what each caller happens to send.
+export async function GET(request: Request): Promise<NextResponse> {
+  return tick(request)
+}
+
+export async function POST(request: Request): Promise<NextResponse> {
+  return tick(request)
 }

@@ -188,30 +188,35 @@ practical. They are single-use by intention.
 
 ---
 
-### 13. Point a cron service at the worker
+### 13. The cron
 
-Reminders need minutes, not hours, and GitHub Actions cannot afford minutes
-on a private repository. A one-minute-minimum bill per run means a `*/5`
-schedule costs ~8,640 minutes a month against a 2,000 free allowance — it
-would have stopped part-way through every month, silently.
+Reminders need minutes, not hours. `vercel.json` already declares a native
+Vercel cron hitting `/api/cron/notifications` every 5 minutes — nothing to
+configure, it activates on deploy. **This requires the Pro plan**: Hobby
+caps cron at once a day, and a schedule that would run more often fails at
+deploy rather than silently falling back.
 
-So the workflow in `.github/workflows/notifications.yml` now runs **hourly**
-as a safety net, and the real schedule lives outside GitHub.
+Vercel's own cron invokes over `GET` — there is no way to configure it for
+any other method — which is why the route answers both `GET` and `POST`
+identically.
 
-Any free HTTP cron works — cron-job.org, EasyCron, Cloudflare Workers Cron.
-Configure one job:
-
-| Field | Value |
-|---|---|
-| URL | `https://<your-domain>/api/cron/notifications` |
-| Method | `POST` |
-| Schedule | every 5 minutes |
-| Header | `Authorization: Bearer <CRON_SECRET>` |
+`.github/workflows/notifications.yml` still runs **hourly** underneath this,
+on a separate provider, as a safety net. Not redundant: Vercel's own docs
+call cron delivery "best effort" and can silently skip a tick, and GitHub
+Actions cannot afford minutes on a private repo (~8,640/month at `*/5`
+against a 2,000 free allowance), so it stays hourly rather than becoming the
+primary schedule.
 
 Both schedules running together is fine and intended. The unique index on
 `(user_id, type, meeting_id, scheduled_for)` is declared `NULLS NOT
 DISTINCT`, so a repeated tick inserts nothing — the idempotency is in the
 database, not in the caller.
+
+**No Pro, no client with a card on file yet?** Point any free HTTP cron
+(cron-job.org, EasyCron, Cloudflare Workers Cron) at the same URL instead —
+`POST` to `/api/cron/notifications` every 5 minutes, header
+`Authorization: Bearer <CRON_SECRET>` — and remove the `crons` block from
+`vercel.json` so Vercel doesn't also fire it on Hobby's once-a-day cap.
 
 **Check it took.** Home shows a red "Reminders" row in *Needs you* when
 notifications are queued past their time and undelivered:
