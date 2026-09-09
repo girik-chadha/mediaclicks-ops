@@ -40,6 +40,20 @@ jobs:
         if: '!cancelled()'
         run: npm test
 
+      # A critical advisory against a runtime dependency is the one class of
+      # dependency problem that cannot wait for someone to notice. Next 15.5.22
+      # sat in this repo for a month carrying an unauthenticated RCE
+      # (CVE-2026-75604) and nothing said so.
+      #
+      # Scoped deliberately. `--omit=dev` because a build tool's advisory is not
+      # a deployed vulnerability, and `--audit-level=critical` because the high
+      # ones currently outstanding (postcss, sharp) need attacker-controlled CSS
+      # at build time or an image endpoint this app does not use. A gate that
+      # cries every week is a gate someone turns off.
+      - name: Audit runtime dependencies
+        if: '!cancelled()'
+        run: npm audit --omit=dev --audit-level=critical
+
       - name: Build
         if: '!cancelled()'
         run: npm run build

@@ -83,12 +83,19 @@ Do not upgrade these without reading the reason first.
 
 | Pin | Why |
 |---|---|
-| **Next 15** (not 16) | Spec §1 fixes it, and Auth.js v5 is still beta and tested against 15. Revisit in Phase 6. |
+| **Next 15** (not 16) | Spec §1 fixes it, and Auth.js v5 is still beta and tested against 15. Revisit in Phase 6. **Floor is 15.5.24** — below that, CVE-2026-75604 is an unauthenticated RCE on a Windows filesystem, which includes `npm run dev` on this machine. Patch within 15.x; `npm audit fix --force` jumps to 16 and breaks the pin. |
 | **TypeScript 5.9** (not 6) | TS 6.0 added `TS2882`, which errors on side-effect imports of untyped modules. Next 15 never declares `*.css`, so `import './globals.css'` fails to compile. Do not "fix" this with a `css.d.ts` shim — it hides a version mismatch that also affects Drizzle and Auth.js types. |
 | **`@types/node` 24** | Matches the actual Node runtime. |
 
 `outputFileTracingRoot` is set in `next.config.ts` because Next otherwise
 infers the wrong workspace root on this machine.
+
+**`npm audit` is noisy on purpose and CI only fails on critical.** The
+outstanding high advisories are `postcss` (Next vendors 8.4.31; the flaws need
+attacker-controlled CSS at build time, and the CSS here is in the repo) and
+`sharp` (reachable only through image optimization, which this app never uses —
+there is no `next/image` anywhere). Neither is a deployed vulnerability. Do not
+"fix" them by upgrading to Next 16.
 
 ---
 
