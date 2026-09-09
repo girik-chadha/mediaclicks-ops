@@ -29,12 +29,23 @@ jobs:
         # The runner's bundled client is older than the server, and pg_dump
         # refuses to dump a newer server than itself. PGDG has current
         # versions; pinning to 17 covers Neon and Supabase today.
+        #
+        # `postgresql-client-17` installs to /usr/lib/postgresql/17/bin —
+        # it does NOT take over the bare `pg_dump` on PATH, which stays
+        # whatever the runner's image shipped (16.15 as of this writing).
+        # `apt install` succeeding says nothing about which binary a later
+        # bare `pg_dump` resolves to; found that the hard way when the
+        # install step's own version check passed and the dump still ran
+        # the wrong client two steps later. PATH_PG17 is exported so every
+        # later step calls the one just installed, explicitly, rather than
+        # trusting apt to have won the PATH race.
         run: |
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          echo "PATH_PG17=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Dump
         env:
@@ -76,7 +87,7 @@ jobs:
           DIRECT="${DIRECT/:6543/:5432}"
           echo "dumping from: $(echo "$DIRECT" | sed -E 's#//[^@]+@#//[redacted]@#')"
 
-          pg_dump "$DIRECT" \
+          "$PATH_PG17/pg_dump" "$DIRECT" \
             --no-owner --no-privileges --format=plain \
             2>/tmp/dump.err \
           | gzip -9 > "mediaclicks-${STAMP}.sql.gz" \
