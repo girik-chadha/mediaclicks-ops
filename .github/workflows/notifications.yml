@@ -37,6 +37,19 @@ jobs:
     steps:
       - name: Run the notification worker
         run: |
+          # Not a secret — the whole point is to make an empty or malformed
+          # APP_URL visible in the log instead of a bare curl exit code with
+          # no way to tell which of the two env vars was the problem. A run
+          # that failed here before this line existed cost two round trips
+          # of screenshots to diagnose what one line of output would have
+          # answered immediately.
+          echo "posting to: ${APP_URL}/api/cron/notifications"
+
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL is empty — check the repository VARIABLE (not secret) is set." >&2
+            exit 1
+          fi
+
           code=$(curl -s -o /tmp/out -w '%{http_code}' -X POST \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/cron/notifications")
