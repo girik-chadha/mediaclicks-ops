@@ -103,11 +103,19 @@ export async function listConversations(
   const statByChannel = new Map(stats.map((s) => [s.channelId, s]))
   const otherByChannel = new Map(others.map((o) => [o.channelId, o]))
 
-  const summaries = rows.map((row) => {
+  const summaries = rows.flatMap((row) => {
     const stat = statByChannel.get(row.id)
     const other = row.kind === 'direct' ? otherByChannel.get(row.id) : undefined
 
-    return {
+    // A direct conversation whose other participant is gone — hard-deleted,
+    // which only a data clear-out does; deactivation keeps the row — has
+    // nothing to be named after and nobody to be sent to. It used to render
+    // as a row literally labelled "Conversation", nine times over, after the
+    // demo people were removed. Deactivated accounts still appear, on
+    // purpose: the history is real and the name is still known.
+    if (row.kind === 'direct' && !other) return []
+
+    return [{
       id: row.id,
       kind: row.kind,
       label: other?.fullName ?? row.name ?? 'Conversation',
@@ -115,7 +123,7 @@ export async function listConversations(
       otherUserId: other?.id ?? null,
       online: other ? isOnline(other.lastSeenAt) : false,
       lastMessageAt: stat?.lastAt ? new Date(stat.lastAt) : null,
-    }
+    }]
   })
 
   // Channels alphabetically, direct messages by recency — a channel list that

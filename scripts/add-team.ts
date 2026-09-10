@@ -40,7 +40,47 @@ import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { splitFullName } from '../src/lib/users/name'
-import { auditLog, roles, userRoles, users } from '../src/server/db/schema'
+import {
+  auditLog,
+  channelMembers,
+  channels,
+  roles,
+  userRoles,
+  users,
+} from '../src/server/db/schema'
+import { isNull } from 'drizzle-orm'
+
+/**
+ * Puts a person in every open channel, the way the Team screen does.
+ *
+ * Somebody who joins the company is already in the room; making them hunt
+ * for #general on day one is a chore that exists only because the software
+ * forgot. This script used to forget: fourteen accounts were created without
+ * it, and #general had one member. Idempotent, so it also runs for people
+ * who already exist.
+ */
+async function joinOpenChannels(
+  tx: Pick<ReturnType<typeof drizzle>, 'select' | 'insert'>,
+  orgId: string,
+  userId: string,
+): Promise<void> {
+  const open = await tx
+    .select({ id: channels.id })
+    .from(channels)
+    .where(
+      and(
+        eq(channels.orgId, orgId),
+        eq(channels.kind, 'channel'),
+        eq(channels.isPrivate, false),
+        isNull(channels.archivedAt),
+      ),
+    )
+  if (open.length === 0) return
+  await tx
+    .insert(channelMembers)
+    .values(open.map((c) => ({ channelId: c.id, userId })))
+    .onConflictDoNothing()
+}
 
 config({ path: '.env.local' })
 config({ path: '.env' })
@@ -176,6 +216,9 @@ async function main() {
         if (roleSame && nameSame) {
           unchanged++
           console.log(`  ${label}  unchanged`)
+          // Still make sure they are in the open channels — cheap, and the
+          // one thing an earlier version of this script did not do.
+          if (apply) await joinOpenChannels(db, owner.orgId, existing.id)
           continue
         }
 
@@ -199,6 +242,8 @@ async function main() {
             await tx.delete(userRoles).where(eq(userRoles.userId, existing.id))
             await tx.insert(userRoles).values({ userId: existing.id, roleId })
           }
+
+          await joinOpenChannels(tx, owner.orgId, existing.id)
 
           await tx.insert(auditLog).values({
             orgId: owner.orgId,
@@ -241,6 +286,7 @@ async function main() {
           .returning({ id: users.id })
 
         await tx.insert(userRoles).values({ userId: made!.id, roleId })
+        await joinOpenChannels(tx, owner.orgId, made!.id)
 
         await tx.insert(auditLog).values({
           orgId: owner.orgId,
