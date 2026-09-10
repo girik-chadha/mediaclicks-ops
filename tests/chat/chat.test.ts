@@ -51,17 +51,23 @@ const ORG = '00000000-0000-0000-0000-0000000000a1'
 const ALICE = '00000000-0000-0000-0000-0000000000b1'
 const BOB = '00000000-0000-0000-0000-0000000000b2'
 
+// Every migration, in journal order, not a hand-picked pair — see the note
+// in tests/db/schema.test.ts for what a pinned list quietly stops testing.
+const MIGRATIONS = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
+  entries: { tag: string }[]
+}
+
 beforeAll(async () => {
   pg = new PGlite()
-  for (const file of ['drizzle/0000_init.sql', 'drizzle/0001_chat.sql']) {
-    const sql = readFileSync(file, 'utf8')
+  for (const { tag } of MIGRATIONS.entries) {
+    const sql = readFileSync(`drizzle/${tag}.sql`, 'utf8')
     for (const statement of sql.split('--> statement-breakpoint')) {
       if (statement.trim()) await pg.exec(statement)
     }
   }
   await pg.exec(`
     INSERT INTO organisations (id, name) VALUES ('${ORG}', 'MediaClicks');
-    INSERT INTO users (id, org_id, email, full_name) VALUES
+    INSERT INTO users (id, org_id, email, first_name) VALUES
       ('${ALICE}', '${ORG}', 'alice@mediaclicks.ae', 'Alice Adams'),
       ('${BOB}',   '${ORG}', 'bob@mediaclicks.ae',   'Bob Barker');
   `)
@@ -177,7 +183,7 @@ describe('messages', () => {
     ).rows
 
     await pg.exec(`
-      INSERT INTO users (id, org_id, email, full_name)
+      INSERT INTO users (id, org_id, email, first_name)
         VALUES ('00000000-0000-0000-0000-0000000000c9', '${ORG}', 'leaver@x.ae', 'Leaver Lee');
       INSERT INTO messages (org_id, channel_id, author_user_id, author_name, body)
         VALUES ('${ORG}', '${channel!.id}', '00000000-0000-0000-0000-0000000000c9', 'Leaver Lee', 'still here');

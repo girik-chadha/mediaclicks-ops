@@ -22,6 +22,7 @@ import {
   SYSTEM_ROLE_PERMISSIONS,
   type SystemRoleName,
 } from '../../lib/permissions'
+import { splitFullName } from '../../lib/users/name'
 import * as schema from './schema'
 import {
   channelMembers,
@@ -142,7 +143,7 @@ async function main() {
         ownerId = (
           await tx
             .insert(users)
-            .values({ orgId, email: ownerEmail, fullName: ownerName, passwordHash })
+            .values({ orgId, email: ownerEmail, ...splitFullName(ownerName), passwordHash })
             .returning({ id: users.id })
         )[0]!.id
         created = true

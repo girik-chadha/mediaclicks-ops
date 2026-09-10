@@ -21,17 +21,32 @@ const USER = '00000000-0000-0000-0000-0000000000b1'
 const OTHER = '00000000-0000-0000-0000-0000000000b2'
 const CLIENT = '00000000-0000-0000-0000-0000000000c1'
 
+/**
+ * Every migration, in journal order — the same replay rls.test.ts does.
+ *
+ * This used to apply 0000_init.sql alone, which was correct for exactly as
+ * long as no later migration touched a table these fixtures insert into.
+ * 0009 made `users.full_name` a generated column and added `first_name`;
+ * the fixtures below moved with it, and the setup silently did not. A
+ * fixture pinned to migration zero tests a database that no longer exists.
+ */
+const MIGRATIONS = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
+  entries: { tag: string }[]
+}
+
 beforeAll(async () => {
   pg = new PGlite()
 
-  const sql = readFileSync('drizzle/0000_init.sql', 'utf8')
-  for (const statement of sql.split('--> statement-breakpoint')) {
-    if (statement.trim()) await pg.exec(statement)
+  for (const { tag } of MIGRATIONS.entries) {
+    const sql = readFileSync(`drizzle/${tag}.sql`, 'utf8')
+    for (const statement of sql.split('--> statement-breakpoint')) {
+      if (statement.trim()) await pg.exec(statement)
+    }
   }
 
   await pg.exec(`
     INSERT INTO organisations (id, name) VALUES ('${ORG}', 'MediaClicks');
-    INSERT INTO users (id, org_id, email, full_name)
+    INSERT INTO users (id, org_id, email, first_name)
       VALUES ('${USER}', '${ORG}', 'owner@mediaclicks.ae', 'Owner'),
              ('${OTHER}', '${ORG}', 'other@mediaclicks.ae', 'Other');
     INSERT INTO clients (id, org_id, company_name)
@@ -65,28 +80,63 @@ async function insertMeeting(fields: Record<string, string>): Promise<string | n
 }
 
 describe('migration', () => {
-  it('applies cleanly and creates all 13 tables', async () => {
+  it('applies every migration cleanly and creates exactly the tables the app has', async () => {
     const res = await pg.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
        ORDER BY table_name`,
     )
     const names = res.rows.map((r) => r.table_name)
+    // Exact, on purpose: a table nobody meant to create is as much a bug as
+    // one that is missing. Add to this list when a migration adds a table —
+    // the assertion failing is the reminder to look at what else it did.
     expect(names).toEqual([
+      'approval_requests',
       'audit_log',
+      'channel_members',
+      'channels',
       'clients',
+      'login_challenges',
       'meeting_attendees',
       'meeting_summaries',
       'meeting_transcripts',
       'meetings',
+      'messages',
       'notifications',
       'organisations',
+      'password_reset_tokens',
       'permissions',
       'role_permissions',
       'roles',
       'user_roles',
       'users',
     ])
+  })
+
+  it('derives full_name from its parts and refuses to let the app write it', async () => {
+    // The generated column is the guarantee that a name can never disagree
+    // with its parts. The refusal is the half that matters: if a write ever
+    // succeeded, the guarantee would have quietly become a default.
+    const derived = await pg.query<{ full_name: string }>(
+      `SELECT full_name FROM users WHERE email = 'owner@mediaclicks.ae'`,
+    )
+    expect(derived.rows[0]?.full_name).toBe('Owner')
+
+    await pg.exec(`
+      INSERT INTO users (id, org_id, email, first_name, last_name)
+        VALUES ('00000000-0000-0000-0000-0000000000b7', '${ORG}', 'two@mediaclicks.ae', 'Rohaan', 'Fernandes');
+    `)
+    const joined = await pg.query<{ full_name: string }>(
+      `SELECT full_name FROM users WHERE email = 'two@mediaclicks.ae'`,
+    )
+    expect(joined.rows[0]?.full_name).toBe('Rohaan Fernandes')
+
+    // Postgres's exact wording (SQLSTATE 428C9). "Generated" appears only in
+    // the DETAIL line, which the driver does not fold into `message` — an
+    // assertion on that word passed review and failed at runtime.
+    await expect(
+      pg.exec(`UPDATE users SET full_name = 'Somebody Else' WHERE email = 'two@mediaclicks.ae'`),
+    ).rejects.toThrow(/"full_name" can only be updated to DEFAULT/)
   })
 
   it('stores every timestamp as timestamptz, with no exceptions', async () => {
@@ -185,7 +235,7 @@ describe('notification idempotency (§4.4)', () => {
 describe('delete policy (ADR 0004)', () => {
   it('keeps audit entries when their actor is deleted, nulling the reference', async () => {
     await pg.exec(`
-      INSERT INTO users (id, org_id, email, full_name)
+      INSERT INTO users (id, org_id, email, first_name)
         VALUES ('00000000-0000-0000-0000-0000000000b9', '${ORG}', 'leaver@mediaclicks.ae', 'Leaver');
       INSERT INTO audit_log (org_id, actor_user_id, actor_email, action, entity_type)
         VALUES ('${ORG}', '00000000-0000-0000-0000-0000000000b9', 'leaver@mediaclicks.ae',

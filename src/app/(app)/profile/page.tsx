@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/shell/page-header'
 import { PERMISSION_KEYS } from '@/lib/permissions'
 import { signOut } from '@/server/auth'
 import { getActor, redirectStaleSession } from '@/server/auth/session'
+import { ChangePasswordSection } from './change-password-section'
 import { ProfileForm } from './profile-form'
 import { TwoFactorSection } from './two-factor-section'
 import { twoFactorStatus } from '@/lib/auth/two-factor'
@@ -31,6 +32,8 @@ export default async function ProfilePage() {
         <div className="max-w-[1200px]">
           <ProfileForm
             fullName={actor.fullName}
+            firstName={actor.firstName}
+            lastName={actor.lastName}
             email={actor.email}
             phoneE164={actor.phoneE164}
             timezone={actor.timezone}
@@ -71,16 +74,13 @@ export default async function ProfilePage() {
             <section className="w-full shrink-0 rounded-sm border border-rule bg-surface p-6 lg:w-[400px]">
               <div className="text-micro uppercase text-slate">Password</div>
               <p className="mt-2 text-body leading-[1.5] text-slate">
-                Changing your password is a command-line step for now:
-              </p>
-              <code className="mt-2 block overflow-x-auto rounded-sm border border-rule bg-paper p-2 font-mono text-[0.6875rem] tracking-[-0.02em]">
-                npm run db:set-password -- {actor.email}
-              </code>
-              <p className="mt-2 text-label text-slate">
-                Existing sessions stay signed in — they are tokens, not database records.
+                Your current password is required, so a device left signed in cannot be
+                used to lock you out.
               </p>
 
-              <form action={handleSignOut} className="mt-4">
+              <ChangePasswordSection />
+
+              <form action={handleSignOut} className="mt-6">
                 <button
                   type="submit"
                   className="h-10 w-full cursor-pointer rounded-sm border border-rule bg-surface px-4 text-body font-medium transition-colors duration-[80ms] hover:border-signal"

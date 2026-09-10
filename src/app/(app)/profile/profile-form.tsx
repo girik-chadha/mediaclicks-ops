@@ -38,6 +38,8 @@ function Submit() {
 
 export function ProfileForm({
   fullName,
+  firstName,
+  lastName,
   email,
   phoneE164,
   timezone,
@@ -48,6 +50,8 @@ export function ProfileForm({
   initials,
 }: {
   fullName: string
+  firstName: string
+  lastName: string | null
   email: string
   phoneE164: string | null
   timezone: string
@@ -85,9 +89,28 @@ export function ProfileForm({
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className={LABEL}>Full name</span>
-            <input name="fullName" defaultValue={fullName} required className={CONTROL} />
-            <span className={HELP}>Shown to everyone in the organisation.</span>
+            <span className={LABEL}>First name</span>
+            <input
+              name="firstName"
+              defaultValue={firstName}
+              required
+              maxLength={100}
+              autoComplete="given-name"
+              className={CONTROL}
+            />
+            <span className={HELP}>How the app greets you, and how the team sees you.</span>
+          </label>
+
+          <label className="block">
+            <span className={LABEL}>Last name</span>
+            <input
+              name="lastName"
+              defaultValue={lastName ?? ''}
+              maxLength={100}
+              autoComplete="family-name"
+              className={CONTROL}
+            />
+            <span className={HELP}>Optional.</span>
           </label>
 
           <label className="block">

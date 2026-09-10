@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   boolean,
   index,
@@ -24,7 +25,32 @@ export const users = pgTable(
      *  NOT NULL now would force a migration the moment Google sign-in lands. */
     passwordHash: text('password_hash'),
 
-    fullName: text('full_name').notNull(),
+    /**
+     * The name, in the two parts people actually edit.
+     *
+     * `last_name` is nullable because several real team members go by one
+     * name and an empty-string sentinel is a lie the code then has to
+     * remember to strip everywhere.
+     */
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name'),
+
+    /**
+     * Derived by the database, not the application.
+     *
+     * Twenty files read `fullName`; none of them should care that it is now
+     * two columns. A STORED generated column keeps every one of those reads
+     * working unchanged, and makes drift impossible — there is no code path
+     * that can write a full name disagreeing with its parts, because there
+     * is no code path that can write it at all. Drizzle's insert type omits
+     * it, so the compiler finds every write site rather than a 500 finding
+     * it in production.
+     */
+    fullName: text('full_name')
+      .notNull()
+      .generatedAlwaysAs(
+        sql`trim(both ' ' from (first_name || ' ' || coalesce(last_name, '')))`,
+      ),
     avatarUrl: text('avatar_url'),
     phoneE164: text('phone_e164'),
 

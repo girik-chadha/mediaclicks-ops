@@ -148,9 +148,17 @@ try {
     }
   }
 
+  // Generated columns cannot be inserted, only computed. `select *` returns
+  // them and a literal copy would be refused for the whole batch, so they are
+  // dropped here and the destination recomputes them from the parts.
+  const GENERATED = { users: ['full_name'] }
+
   let total = 0
   for (const table of order) {
-    const rows = await from`select * from ${from(table)}`
+    let rows = await from`select * from ${from(table)}`
+    for (const column of GENERATED[table] ?? []) {
+      rows = rows.map((row) => Object.fromEntries(Object.entries(row).filter(([k]) => k !== column)))
+    }
     if (rows.length === 0) {
       console.log(`${table.padEnd(24)} 0`)
       continue

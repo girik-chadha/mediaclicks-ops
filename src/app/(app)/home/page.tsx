@@ -9,6 +9,7 @@ import { listPendingFor } from '@/server/assistant/approvals'
 import { describeDelay } from '@/lib/notifications/describe'
 import { reminderHealth } from '@/server/notifications/health'
 import { shouldOfferTwoFactor } from '@/lib/auth/two-factor'
+import { displayFirstName } from '@/lib/users/name'
 import { mailIsConfigured } from '@/server/mail'
 
 export default async function HomePage({
@@ -52,7 +53,7 @@ export default async function HomePage({
           activity={activity.map((a) => ({ ...a, when: a.when.toISOString() }))}
           clientsWeek={clientsWeek}
           zone={zone}
-          firstName={actor.fullName.split(' ')[0] ?? actor.fullName}
+          firstName={displayFirstName(actor.firstName, actor.email)}
           greet={greet}
           offerTwoFactor={shouldOfferTwoFactor({
             userEnabled: actor.twoFactorEnabled,

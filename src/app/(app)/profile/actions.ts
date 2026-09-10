@@ -3,6 +3,7 @@
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { joinName } from '@/lib/users/name'
 import { requireActor } from '@/server/auth/session'
 import { db } from '@/server/db'
 import { auditLog, users } from '@/server/db/schema'
@@ -13,7 +14,13 @@ export interface ProfileState {
 }
 
 const input = z.object({
-  fullName: z.string().trim().min(1, 'Your name cannot be blank.').max(200),
+  firstName: z.string().trim().min(1, 'Your first name cannot be blank.').max(100),
+  // Optional, and stored as NULL rather than "" — see the column's comment.
+  lastName: z
+    .string()
+    .trim()
+    .max(100)
+    .transform((s) => (s === '' ? null : s)),
   phoneE164: z.string().trim().max(32).optional(),
   timezone: z.string().trim().min(1).max(64),
   dailyDigest: z.boolean(),
@@ -45,7 +52,8 @@ export async function updateProfileAction(
   const actor = await requireActor()
 
   const parsed = input.safeParse({
-    fullName: form.get('fullName'),
+    firstName: form.get('firstName'),
+    lastName: form.get('lastName') ?? '',
     phoneE164: form.get('phoneE164') || undefined,
     timezone: form.get('timezone'),
     // An unchecked checkbox sends nothing at all, so absence is false.
@@ -66,7 +74,8 @@ export async function updateProfileAction(
     await tx
       .update(users)
       .set({
-        fullName: parsed.data.fullName,
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
         phoneE164: parsed.data.phoneE164 ?? null,
         timezone: parsed.data.timezone,
         dailyDigest: parsed.data.dailyDigest,
@@ -84,7 +93,7 @@ export async function updateProfileAction(
       entityId: actor.id,
       before: { fullName: actor.fullName, timezone: actor.timezone },
       after: {
-        fullName: parsed.data.fullName,
+        fullName: joinName(parsed.data),
         timezone: parsed.data.timezone,
         dailyDigest: parsed.data.dailyDigest,
         digestTime: parsed.data.digestTime,

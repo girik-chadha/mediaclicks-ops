@@ -18,6 +18,7 @@ import { config } from 'dotenv'
 import { and, eq, like } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { splitFullName } from '../src/lib/users/name'
 import { hashPassword } from '../src/server/auth/password'
 import {
   clients,
@@ -251,7 +252,7 @@ async function main() {
         .values({
           orgId: owner.orgId,
           email,
-          fullName: p.name,
+          ...splitFullName(p.name),
           passwordHash: demoHash,
           avatarUrl: `${TAG} ${p.title}`,
           timezone: owner.timezone,
