@@ -4,6 +4,8 @@ import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { createUser, type CreateUserState } from './actions'
 
+const FIELD = 'h-9 w-full rounded-sm border border-rule bg-surface px-2 text-body'
+
 function SubmitButton() {
   const { pending } = useFormStatus()
   return (
@@ -18,6 +20,14 @@ function SubmitButton() {
   )
 }
 
+/**
+ * Owner-only, and enforced in `createUser` — this form is presentation.
+ *
+ * No password field. The account is created without one, and the person
+ * sets their own from the emailed link — the same route they will use if
+ * they ever forget it. The success message says exactly that, because the
+ * owner is about to message them and needs the right sentence to send.
+ */
 export function CreateUserForm() {
   const [state, formAction] = useActionState<CreateUserState, FormData>(createUser, {})
 
@@ -25,12 +35,12 @@ export function CreateUserForm() {
     <form action={formAction} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
-          <span className="mb-1 block text-label text-slate">Full name</span>
-          <input
-            name="fullName"
-            required
-            className="h-9 w-full rounded-sm border border-rule bg-surface px-2 text-body"
-          />
+          <span className="mb-1 block text-label text-slate">First name</span>
+          <input name="firstName" required maxLength={100} autoComplete="off" className={FIELD} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-label text-slate">Last name</span>
+          <input name="lastName" maxLength={100} autoComplete="off" className={FIELD} />
         </label>
         <label className="block">
           <span className="mb-1 block text-label text-slate">Work email</span>
@@ -38,24 +48,14 @@ export function CreateUserForm() {
             name="email"
             type="email"
             required
+            autoComplete="off"
             placeholder="name@mediaclicks.ae"
-            className="h-9 w-full rounded-sm border border-rule bg-surface px-2 text-body"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-label text-slate">Initial password</span>
-          <input
-            name="password"
-            type="password"
-            required
-            minLength={12}
-            autoComplete="new-password"
-            className="h-9 w-full rounded-sm border border-rule bg-surface px-2 text-body"
+            className={FIELD}
           />
         </label>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <SubmitButton />
         {state.error && (
           <span role="alert" className="text-label text-slate">
@@ -64,7 +64,8 @@ export function CreateUserForm() {
         )}
         {state.created && (
           <span role="status" className="text-label text-slate">
-            {state.created} added. They sign in with the password you set.
+            {state.created} added as a Member. Tell them: go to the sign-in page, click
+            &ldquo;Forgot password&rdquo;, and set one from the emailed link.
           </span>
         )}
       </div>

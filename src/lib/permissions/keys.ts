@@ -36,9 +36,13 @@ export type SystemRoleName = (typeof SYSTEM_ROLE_NAMES)[number]
  * Seeded defaults (§3). Seed data only — never consulted at runtime by
  * `can()`, which reads the user's granted set from the database.
  *
- * Manager holds `user.invite`, so with these defaults a Manager can create
- * users. That is a seed-data decision and is revocable from the permissions
- * matrix without touching code.
+ * Adding people is Owner-only by default. It used to be granted to Manager
+ * as well; it was revoked because the owners asked for it to be, and because
+ * an account created here has no password and can be claimed by whoever
+ * controls the mailbox — which makes "who may add an address" a security
+ * decision rather than an administrative one. Still a seed-data decision,
+ * still re-grantable from the permissions matrix without touching code:
+ * `npm run db:seed` reconciles the bundles.
  */
 export const SYSTEM_ROLE_PERMISSIONS: Record<
   SystemRoleName,
@@ -47,7 +51,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<
   Owner: PERMISSION_KEYS,
 
   Manager: PERMISSION_KEYS.filter(
-    (k) => k !== 'role.manage' && k !== 'user.manage',
+    (k) => k !== 'role.manage' && k !== 'user.manage' && k !== 'user.invite',
   ),
 
   Member: [

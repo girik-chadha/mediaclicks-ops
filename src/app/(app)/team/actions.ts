@@ -4,7 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { reportUnexpected } from '@/server/report'
 import { z } from 'zod'
-import { hashPassword } from '@/server/auth/password'
+import { joinName } from '@/lib/users/name'
 import { requirePermission } from '@/server/auth/require'
 import { db } from '@/server/db'
 import {
@@ -49,12 +49,21 @@ export async function setUserRoleAction(
 }
 
 const input = z.object({
-  fullName: z.string().trim().min(1, 'Enter a name.').max(200),
+  firstName: z.string().trim().min(1, 'Enter a first name.').max(100),
+  lastName: z
+    .string()
+    .trim()
+    .max(100)
+    .transform((s) => (s === '' ? null : s)),
   email: z.string().trim().toLowerCase().min(3).max(320).includes('@', {
     message: 'Enter a valid email address.',
   }),
-  password: z.string().min(12, 'The initial password must be at least 12 characters.').max(1024),
 })
+
+/** A stray leading "@" is what copying an address out of a chat produces. */
+function stripHandle(value: FormDataEntryValue | null): string {
+  return String(value ?? '').replace(/^\s*@+/, '')
+}
 
 export async function createUser(
   _prev: CreateUserState,
@@ -66,16 +75,17 @@ export async function createUser(
   const actor = await requirePermission('user.invite')
 
   const parsed = input.safeParse({
-    fullName: formData.get('fullName'),
-    email: formData.get('email'),
-    password: formData.get('password'),
+    firstName: formData.get('firstName'),
+    lastName: formData.get('lastName') ?? '',
+    email: stripHandle(formData.get('email')),
   })
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Check the details and try again.' }
   }
 
-  const { fullName, email, password } = parsed.data
+  const { firstName, lastName, email } = parsed.data
+  const fullName = joinName({ firstName, lastName })
 
   const taken = await db
     .select({ id: users.id })
@@ -100,13 +110,17 @@ export async function createUser(
     return { error: 'The Member role is missing. Run the seed script.' }
   }
 
-  const passwordHash = await hashPassword(password)
-
   try {
     await db.transaction(async (tx) => {
       const inserted = await tx
         .insert(users)
-        .values({ orgId: actor.orgId, email, fullName, passwordHash })
+        // No password, deliberately. A temporary one has to be generated,
+        // handed over, and then trusted to be changed — and it is readable by
+        // whoever it was sent through for as long as that thread exists. The
+        // person sets their own from the emailed link at /forgot, and until
+        // they do, the account cannot be signed into at all. Nobody but the
+        // account holder ever knows it, including the owner adding them.
+        .values({ orgId: actor.orgId, email, firstName, lastName, passwordHash: null })
         .returning({ id: users.id })
 
       const newUserId = inserted[0]!.id

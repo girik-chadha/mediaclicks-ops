@@ -1,5 +1,5 @@
 /**
- * Creates the real team from a list of email addresses.
+ * Creates or updates the real team from `team.txt`.
  *
  * Accounts are created **without a password**. Everyone sets their own by
  * going to /forgot and following the emailed link — the same flow they will
@@ -16,24 +16,30 @@
  * the default on purpose: this runs against whatever DATABASE_URL points at,
  * which at handover time is production.
  *
+ * **Idempotent, and safe to re-run against a live team.** An address that
+ * already exists has its first name, last name and role brought up to date;
+ * its password hash is never read, never written, never mentioned. Running
+ * it twice does the second time what a no-op would, and prints so.
+ *
  * The file is one entry per line:
  *
- *   someone@example.com
- *   someone.else@example.com, Owner
- *   third@example.com, GFX, Third Person
+ *   someone@example.com, Owner, First, Last
+ *   someone.else@example.com, Member, Onename
  *
- * Role defaults to Member and must already exist — create custom roles on
- * the Team page first, then run this. Names default to a readable guess from
- * the address, which people can correct in Profile.
+ * Roles must already exist — Owner / Manager / Member are built in; create
+ * custom ones on the Team page first.
  *
- * Requires email to be configured (RESEND_API_KEY, MAIL_FROM), or nobody can
- * complete the second half.
+ * Requires email to be configured (RESEND_API_KEY, MAIL_FROM) with a
+ * sending domain that can reach these addresses, or nobody can complete the
+ * second half. The Resend sandbox address only delivers to the account that
+ * owns it; see docs/runbook-go-live.md.
  */
 import { readFileSync } from 'node:fs'
 import { config } from 'dotenv'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { splitFullName } from '../src/lib/users/name'
 import { auditLog, roles, userRoles, users } from '../src/server/db/schema'
 
 config({ path: '.env.local' })
@@ -42,7 +48,8 @@ config({ path: '.env' })
 interface Entry {
   email: string
   roleName: string
-  fullName: string
+  firstName: string
+  lastName: string | null
 }
 
 /** "rohaan.fernandes336@gmail.com" -> "Rohaan Fernandes336" — a starting point. */
@@ -57,28 +64,37 @@ function nameFromEmail(email: string): string {
   )
 }
 
+/** Trims, strips any leading "@" (what a chat export produces), lowercases. */
+export function normaliseEmail(raw: string): string {
+  return raw.trim().replace(/^@+/, '').toLowerCase()
+}
+
 function parse(path: string): Entry[] {
   const text = readFileSync(path, 'utf8')
   const out: Entry[] = []
+  const seen = new Set<string>()
 
   for (const raw of text.split('\n')) {
     const line = raw.trim()
     if (!line || line.startsWith('#')) continue
 
-    const [emailPart, rolePart, namePart] = line.split(',').map((p) => p?.trim())
+    const [emailPart, rolePart, firstPart, lastPart] = line.split(',').map((p) => p?.trim())
 
-    // A stray leading '@' is what copying out of a chat export produces.
-    const email = (emailPart ?? '').replace(/^@+/, '').toLowerCase()
+    const email = normaliseEmail(emailPart ?? '')
     if (!email.includes('@')) {
       console.warn(`skipping, not an email: ${line}`)
       continue
     }
+    // The same address twice in the file is a mistake in the file, not two
+    // people. Refuse rather than let the last line silently win.
+    if (seen.has(email)) throw new Error(`${email} appears more than once in ${path}.`)
+    seen.add(email)
 
-    out.push({
-      email,
-      roleName: rolePart || 'Member',
-      fullName: namePart || nameFromEmail(email),
-    })
+    const name = firstPart
+      ? { firstName: firstPart, lastName: lastPart || null }
+      : splitFullName(nameFromEmail(email))
+
+    out.push({ email, roleName: rolePart || 'Member', ...name })
   }
 
   return out
@@ -125,27 +141,90 @@ async function main() {
       )
     }
 
-    console.log(apply ? '\ncreating accounts:\n' : '\nDRY RUN — nothing will be written:\n')
-    const created: { email: string; role: string; name: string }[] = []
+    console.log(apply ? '\napplying:\n' : '\nDRY RUN — nothing will be written:\n')
+
+    const created: Entry[] = []
+    let updated = 0
+    let unchanged = 0
 
     for (const entry of entries) {
+      const roleId = roleRows.find((r) => r.name === entry.roleName)!.id
+      const label = `${entry.email.padEnd(34)} ${entry.roleName.padEnd(8)} ${entry.firstName}${entry.lastName ? ' ' + entry.lastName : ''}`
+
       const [existing] = await db
-        .select({ id: users.id })
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          deactivatedAt: users.deactivatedAt,
+        })
         .from(users)
-        .where(eq(users.email, entry.email))
+        .where(and(eq(users.orgId, owner.orgId), eq(users.email, entry.email)))
         .limit(1)
 
       if (existing) {
-        console.log(`  ${entry.email.padEnd(38)} already exists, skipped`)
+        const currentRoles = await db
+          .select({ name: roles.name })
+          .from(userRoles)
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(eq(userRoles.userId, existing.id))
+
+        const roleSame = currentRoles.length === 1 && currentRoles[0]!.name === entry.roleName
+        const nameSame =
+          existing.firstName === entry.firstName && existing.lastName === entry.lastName
+
+        if (roleSame && nameSame) {
+          unchanged++
+          console.log(`  ${label}  unchanged`)
+          continue
+        }
+
+        console.log(`  ${label}  update${existing.deactivatedAt ? ' (deactivated — left so)' : ''}`)
+        // Counted whether or not it is written: the dry run's whole job is
+        // to state the totals it would produce, and a plan that reports
+        // "0 to update" above fourteen rows marked "update" is a bug that
+        // survived exactly one reading before it was noticed.
+        updated++
+        if (!apply) continue
+
+        await db.transaction(async (tx) => {
+          // Only the profile columns. `password_hash` is not in this
+          // statement and is not in any statement in this file.
+          await tx
+            .update(users)
+            .set({ firstName: entry.firstName, lastName: entry.lastName })
+            .where(eq(users.id, existing.id))
+
+          if (!roleSame) {
+            await tx.delete(userRoles).where(eq(userRoles.userId, existing.id))
+            await tx.insert(userRoles).values({ userId: existing.id, roleId })
+          }
+
+          await tx.insert(auditLog).values({
+            orgId: owner.orgId,
+            actorUserId: owner.id,
+            actorEmail: owner.email,
+            action: roleSame ? 'user.profile_updated' : 'user.role_changed',
+            entityType: 'user',
+            entityId: existing.id,
+            before: {
+              firstName: existing.firstName,
+              lastName: existing.lastName,
+              roles: currentRoles.map((r) => r.name).sort(),
+            },
+            after: {
+              firstName: entry.firstName,
+              lastName: entry.lastName,
+              roles: [entry.roleName],
+            },
+          })
+        })
         continue
       }
 
-      if (!apply) {
-        console.log(`  ${entry.email.padEnd(38)} ${entry.roleName.padEnd(10)} ${entry.fullName}`)
-        continue
-      }
-
-      const roleId = roleRows.find((r) => r.name === entry.roleName)!.id
+      console.log(`  ${label}  create`)
+      created.push(entry)
+      if (!apply) continue
 
       await db.transaction(async (tx) => {
         const [made] = await tx
@@ -153,7 +232,8 @@ async function main() {
           .values({
             orgId: owner.orgId,
             email: entry.email,
-            fullName: entry.fullName,
+            firstName: entry.firstName,
+            lastName: entry.lastName,
             // No password. They set their own from the emailed reset link,
             // and until they do the account cannot be signed into at all.
             passwordHash: null,
@@ -171,18 +251,21 @@ async function main() {
           entityId: made!.id,
           before: null,
           // Never the password or its hash. An audit log is read by people.
-          after: { email: entry.email, fullName: entry.fullName, roles: [entry.roleName] },
+          after: {
+            email: entry.email,
+            firstName: entry.firstName,
+            lastName: entry.lastName,
+            roles: [entry.roleName],
+          },
         })
       })
-
-      created.push({ email: entry.email, role: entry.roleName, name: entry.fullName })
-      console.log(`  ${entry.email.padEnd(38)} ${entry.roleName.padEnd(10)} created`)
     }
 
-    if (!apply) {
-      console.log('\nre-run with --apply to create these accounts.')
-      return
-    }
+    console.log(
+      `\n${created.length} to create, ${updated} to update, ${unchanged} unchanged` +
+        (apply ? '.' : ' — re-run with --apply to write.'),
+    )
+    if (!apply) return
 
     if (created.length > 0) {
       console.log('\n' + '='.repeat(72))
@@ -190,12 +273,11 @@ async function main() {
       console.log('='.repeat(72))
       console.log('Send each person the app URL and this line:')
       console.log('')
-      console.log('  Go to /forgot, enter this email address, and follow the link')
-      console.log('  to choose your password. The link works once and lasts an hour.')
+      console.log('  Go to the sign-in page, click "Forgot password", enter this address,')
+      console.log('  and follow the emailed link to choose your password. The link works')
+      console.log('  once and lasts an hour.')
       console.log('')
-      for (const c of created) {
-        console.log(`  ${c.email.padEnd(38)} ${c.role}`)
-      }
+      for (const c of created) console.log(`  ${c.email.padEnd(34)} ${c.roleName}`)
       console.log('='.repeat(72))
       console.log('Nothing secret here — there is no password to leak.')
     }
@@ -204,7 +286,7 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : error)
   process.exit(1)
 })

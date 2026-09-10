@@ -169,16 +169,38 @@ To turn it on: create a key at resend.com, verify the sending domain, and set
 
 ### 11. Add each member
 
-As the owner: **Team → Add person**. Name, email, and an initial password of
-at least 12 characters that you choose.
+**Nobody is ever handed a password.** Accounts are created without one, and
+each person sets their own by going to the sign-in page, clicking **Forgot
+password**, and following the emailed link. That is the whole onboarding
+flow, and it is the same flow they use if they ever forget it.
 
-No invitation email is sent — the app has no invite flow. You hand each
-person their password directly, and they change it in Profile.
+**Which means email has to reach them first.** The Resend sandbox address
+(`onboarding@resend.dev`) delivers only to the mailbox that owns the Resend
+account — everyone else's link is silently dropped and their account is
+unreachable. Verify a real sending domain in Resend and set `MAIL_FROM` to it
+*before* this step, or you will be onboarding exactly one person.
+
+Two ways to add people; both create the account the same way.
+
+**The whole team at once**, from `team.txt` (email, role, first name, last
+name per line):
+
+```powershell
+node --import tsx scripts/add-team.ts team.txt            # shows the plan
+node --import tsx scripts/add-team.ts team.txt --apply    # writes it
+```
+
+Safe to re-run: an address that already exists has its name and role brought
+up to date and its password left untouched.
+
+**One person**, as an owner: **Team → Add person**. First name, last name,
+email. Owners only — a Manager cannot add people, because an account created
+here can be claimed by whoever controls that mailbox.
 
 Everyone is created as **Member**. Promote from the same screen:
 
-- **Owner** — everything, including roles and permissions
-- **Manager** — can edit and cancel anyone's meetings, invite people
+- **Owner** — everything, including roles, permissions, and adding people
+- **Manager** — can edit and cancel anyone's meetings
 - **Member** — their own meetings; can *ask* an owner to change someone
   else's rather than being refused (ADR 0008)
 
