@@ -208,6 +208,31 @@ Give out Manager sparingly. A Member is not blocked from anything important;
 their requests go to the meeting's owner as a chat message with Approve and
 Deny on it.
 
+### 11½. The two owners, and the first thing each must do
+
+Both owner accounts were seeded with a **known temporary password**, at
+the outgoing owner's request, so the handover could happen without an
+email round trip. That is a deliberate exception to the rule above, and
+it has a shelf life of one sign-in.
+
+**On first sign-in, each owner:**
+
+1. **Profile → Password → Change password.** Until this happens, the
+   person who ran the seed knows the other owner's password, and so does
+   the chat transcript the seed was run from. An owner account holds every
+   permission.
+2. **Home → "Sign-in security" → Turn it on** (or Profile → Sign-in
+   security). A code is emailed on every sign-in from then on. Owners
+   should not skip this; theirs are the accounts worth stealing.
+
+The thirteen members were created with no password at all and are
+unaffected — they set their own from the emailed link, as §11 describes.
+
+**Also outstanding at handover** — `AUTH_SECRET` in Vercel has been
+exposed during development and should be rotated one more time by the
+incoming owner: `npx auth secret` → paste into Vercel → redeploy. It signs
+every session cookie, so whoever holds it can mint a session for anyone.
+
 ### 12. What to hand over
 
 For each person:
