@@ -22,6 +22,9 @@ export const PERMISSION_KEYS = [
   'transcript.view.own',
   'transcript.view.all',
   'client.manage',
+  /** Create channels and decide who is in them. Not "send messages" — that
+   *  is membership, which is its own gate (see chat mutations). */
+  'channel.manage',
   'user.invite',
   'user.manage',
   'role.manage',

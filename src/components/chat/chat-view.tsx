@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  createChannelAction,
   decideApprovalAction,
   joinChannelAction,
   markReadAction,
@@ -11,6 +10,7 @@ import {
   sendMessageAction,
 } from '@/app/(app)/chat/actions'
 import { formatTime } from '@/lib/time'
+import { NewChannelModal } from './new-channel-modal'
 
 export interface ConversationDto {
   id: string
@@ -103,6 +103,7 @@ export function ChatView({
   activeId,
   messages,
   zone,
+  canManageChannels,
 }: {
   conversations: ConversationDto[]
   joinable: { id: string; name: string | null }[]
@@ -110,12 +111,16 @@ export function ChatView({
   activeId: string | null
   messages: MessageDto[]
   zone: string
+  /** Decided on the server from `channel.manage`. Hides the control only;
+   *  `createChannel()` is the gate. */
+  canManageChannels: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [showPeople, setShowPeople] = useState(false)
+  const [showNewChannel, setShowNewChannel] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
 
   const active = conversations.find((c) => c.id === activeId) ?? null
@@ -174,23 +179,34 @@ export function ChatView({
       <div className="hidden w-52 shrink-0 flex-col overflow-auto border-r border-rule bg-surface px-2 py-3 md:flex">
         <div className="flex items-center justify-between px-2 pb-2">
           <span className="text-micro uppercase text-slate">Channels</span>
-          <button
-            type="button"
-            onClick={() => {
-              const name = window.prompt('Channel name')
-              if (!name) return
-              startTransition(async () => {
-                const result = await createChannelAction(name)
-                if (result.error) setError(result.error)
-                else if (result.id) openConversation(result.id)
-              })
-            }}
-            aria-label="New channel"
-            className="cursor-pointer text-label text-slate hover:text-signal"
-          >
-            +
-          </button>
+          {/*
+            Was a window.prompt(): a browser-chrome dialog titled with the
+            domain, one text field, no way to say who the channel is for. Now
+            a real dialog in the product's own geometry, and only for people
+            who may create channels — a "+" that opens a form which then
+            refuses you is a worse experience than no "+".
+          */}
+          {canManageChannels && (
+            <button
+              type="button"
+              onClick={() => setShowNewChannel(true)}
+              aria-label="New channel"
+              className="cursor-pointer text-label text-slate hover:text-signal"
+            >
+              +
+            </button>
+          )}
         </div>
+
+        <NewChannelModal
+          open={showNewChannel}
+          onClose={() => setShowNewChannel(false)}
+          people={people}
+          onCreated={(id) => {
+            setShowNewChannel(false)
+            openConversation(id)
+          }}
+        />
 
         {channels.map((c) => (
           <Row

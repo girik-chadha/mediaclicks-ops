@@ -1,9 +1,17 @@
 import 'server-only'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { normaliseChannelName } from '@/lib/chat/keys'
+import { requirePermission } from '../auth/require'
 import { requireActor, type SessionActor } from '../auth/session'
 import { db } from '../db'
-import { channelMembers, channels, directMessageKey, messages, users } from '../db/schema'
+import {
+  auditLog,
+  channelMembers,
+  channels,
+  directMessageKey,
+  messages,
+  users,
+} from '../db/schema'
 import { inOrg } from '../scope'
 import { isMember } from './queries'
 
@@ -14,8 +22,33 @@ export class NotAMemberError extends Error {
   }
 }
 
-export async function createChannel(name: string, isPrivate = false): Promise<string> {
-  const actor = await requireActor()
+export class DuplicateChannelError extends Error {
+  override readonly name = 'DuplicateChannelError'
+  constructor(name: string) {
+    super(`There is already a #${name} channel.`)
+  }
+}
+
+/**
+ * Creates a channel and puts the chosen people in it.
+ *
+ * Gated on `channel.manage` — creating rooms and deciding who is in them is
+ * an organisational act, not a conversational one. Sending a message stays
+ * gated on membership alone, as before. Owners hold the key; the seed gives
+ * it to Managers too, and like every bundle it is editable from the matrix.
+ *
+ * Members are resolved *inside* the org and the transaction: an id from
+ * another organisation, or one that stopped existing between the picker
+ * rendering and the click, is silently not added rather than either
+ * failing the whole channel or — worse — inserting a membership for a row
+ * the org boundary should never have let it see.
+ */
+export async function createChannel(
+  name: string,
+  isPrivate = false,
+  memberIds: readonly string[] = [],
+): Promise<string> {
+  const actor = await requirePermission('channel.manage')
   const normalised = normaliseChannelName(name)
   if (!normalised) throw new Error('Give the channel a name.')
 
@@ -26,15 +59,11 @@ export async function createChannel(name: string, isPrivate = false): Promise<st
       .where(and(inOrg(channels, actor), eq(channels.name, normalised)))
       .limit(1)
 
-    // Joining rather than failing: someone typing a name that already exists
-    // wants that channel, not an error.
-    if (existing[0]) {
-      await tx
-        .insert(channelMembers)
-        .values({ channelId: existing[0].id, userId: actor.id })
-        .onConflictDoNothing()
-      return existing[0].id
-    }
+    // A named error rather than the old "quietly join the existing one":
+    // somebody creating "creative" with three chosen people, and landing in
+    // a different, older #creative with nobody they picked in it, would not
+    // know what happened. Say so.
+    if (existing[0]) throw new DuplicateChannelError(normalised)
 
     const [created] = await tx
       .insert(channels)
@@ -47,7 +76,31 @@ export async function createChannel(name: string, isPrivate = false): Promise<st
       })
       .returning({ id: channels.id })
 
-    await tx.insert(channelMembers).values({ channelId: created!.id, userId: actor.id })
+    const wanted = [...new Set(memberIds)].filter((id) => id !== actor.id)
+    const valid =
+      wanted.length === 0
+        ? []
+        : await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(inOrg(users, actor), inArray(users.id, wanted), isNull(users.deactivatedAt)))
+
+    await tx.insert(channelMembers).values([
+      { channelId: created!.id, userId: actor.id },
+      ...valid.map((u) => ({ channelId: created!.id, userId: u.id })),
+    ])
+
+    await tx.insert(auditLog).values({
+      orgId: actor.orgId,
+      actorUserId: actor.id,
+      actorEmail: actor.email,
+      action: 'channel.created',
+      entityType: 'channel',
+      entityId: created!.id,
+      before: null,
+      after: { name: normalised, isPrivate, members: valid.length + 1 },
+    })
+
     return created!.id
   })
 }

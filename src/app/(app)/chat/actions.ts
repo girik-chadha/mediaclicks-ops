@@ -19,6 +19,9 @@ export interface ChatActionState {
 function messageFor(error: unknown): string {
   if (error instanceof Error) {
     if (error.name === 'NotAMemberError') return error.message
+    if (error.name === 'DuplicateChannelError') return error.message
+    // "Emma can't create channels" — written for the person, by requirePermission.
+    if (error.name === 'ForbiddenError') return error.message
     // Validation messages are already written in the product's voice.
     if (error.message && error.message.length < 120) return error.message
   }
@@ -45,9 +48,17 @@ export async function markReadAction(channelId: string): Promise<void> {
   revalidatePath('/home')
 }
 
-export async function createChannelAction(name: string): Promise<{ error?: string; id?: string }> {
+export interface CreateChannelInput {
+  name: string
+  isPrivate: boolean
+  memberIds: string[]
+}
+
+export async function createChannelAction(
+  input: CreateChannelInput,
+): Promise<{ error?: string; id?: string }> {
   try {
-    const id = await createChannel(name)
+    const id = await createChannel(input.name, input.isPrivate, input.memberIds)
     revalidatePath('/chat')
     return { id }
   } catch (error) {

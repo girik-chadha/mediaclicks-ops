@@ -27,6 +27,7 @@ import type { PermissionKey } from './keys'
 
 export const FLAT_PERMISSIONS = [
   'client.manage',
+  'channel.manage',
   'user.invite',
   'user.manage',
   'role.manage',

@@ -27,6 +27,7 @@ const PHRASE: Record<Action, string> = {
   'meeting.view': "view other people's meetings",
   'transcript.view': "view other people's transcripts",
   'client.manage': 'manage clients',
+  'channel.manage': 'create channels',
   'user.invite': 'add people to the team',
   'user.manage': 'manage team members',
   'role.manage': 'change roles and permissions',

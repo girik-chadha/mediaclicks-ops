@@ -73,6 +73,7 @@ const GRANTS: Record<PermissionKey, Record<SystemRoleName, boolean>> = {
   'transcript.view.own': { Owner: true, Manager: true, Member: true },
   'transcript.view.all': { Owner: true, Manager: true, Member: false },
   'client.manage': { Owner: true, Manager: true, Member: false },
+  'channel.manage': { Owner: true, Manager: true, Member: false },
   'user.invite': { Owner: true, Manager: false, Member: false },
   'user.manage': { Owner: true, Manager: false, Member: false },
   'role.manage': { Owner: true, Manager: false, Member: false },
@@ -119,6 +120,7 @@ const SCOPED_EXPECTED: Record<
 
 const FLAT_EXPECTED: Record<FlatPermission, Record<SystemRoleName, boolean>> = {
   'client.manage': { Owner: true, Manager: true, Member: false },
+  'channel.manage': { Owner: true, Manager: true, Member: false },
   'user.invite': { Owner: true, Manager: false, Member: false },
   'user.manage': { Owner: true, Manager: false, Member: false },
   'role.manage': { Owner: true, Manager: false, Member: false },

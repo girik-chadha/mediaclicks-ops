@@ -25,6 +25,7 @@ const COLUMNS: { label: string; key: PermissionKey }[] = [
   { label: 'All meetings', key: 'meeting.view.all' },
   { label: 'Transcripts', key: 'transcript.view.all' },
   { label: 'Clients', key: 'client.manage' },
+  { label: 'Channels', key: 'channel.manage' },
   { label: 'Invite', key: 'user.invite' },
   { label: 'Roles', key: 'role.manage' },
 ]

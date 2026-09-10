@@ -1,5 +1,6 @@
 import { ChatView, type MessageDto } from '@/components/chat/chat-view'
 import { PageHeader } from '@/components/shell/page-header'
+import { can } from '@/lib/permissions'
 import { getActor, redirectStaleSession } from '@/server/auth/session'
 import {
   isOnline,
@@ -66,6 +67,8 @@ export default async function ChatPage({
           activeId={activeId}
           messages={messages}
           zone={actor.timezone}
+          // Hides the control; createChannel() is what enforces it (§3).
+          canManageChannels={can(actor, 'channel.manage')}
         />
       </div>
     </div>
