@@ -233,6 +233,27 @@ exposed during development and should be rotated one more time by the
 incoming owner: `npx auth secret` → paste into Vercel → redeploy. It signs
 every session cookie, so whoever holds it can mint a session for anyone.
 
+### 11¾. What the calendar shows on day one
+
+The demo dataset was removed at handover (`npm run db:demo -- clear`: 97
+meetings, 5 clients, 5 invented teammates) along with the owner's own test
+meetings, so nobody signing in for the first time meets a roster of
+strangers.
+
+An empty calendar reads as a product that does not work, so
+`scripts/starter-meetings.ts` puts fourteen ordinary internal meetings on
+the next two working weeks — standups, planning, a creative review —
+created by the incoming owner and attended by real team members. They are
+genuine rows with no marker: rename, move or cancel them like any other.
+No clients are seeded; every client is one the agency adds itself.
+
+```powershell
+node --import tsx scripts/starter-meetings.ts            # shows the plan
+node --import tsx scripts/starter-meetings.ts --apply    # writes it
+```
+
+Idempotent on title and start time, so re-running adds nothing twice.
+
 ### 12. What to hand over
 
 For each person:
